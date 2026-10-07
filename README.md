@@ -28,8 +28,8 @@ running that still holds your identity.
   where herdr finds it)
 - `tsh` 18.11 or newer, logged in to your Beams tenant:
   `TELEPORT_CLUSTER= tsh login --proxy=<tenant>.beams.sh`
-- `jq`, the command-line JSON (JavaScript Object Notation) processor
-- The `tsh config` block for the tenant in your SSH (Secure Shell) config, so OpenSSH
+- `jq`, the command-line JSON processor
+- The `tsh config` block for the tenant in your SSH config, so OpenSSH
   can reach a Beam:
 
   ```sh
@@ -120,7 +120,7 @@ the same id, so `herdr plugin action invoke herdr-beams.<id>` opens it from any 
 | `agent` | Picks a Beam (or creates one when there is none), opens a workspace on it, starts the agent (`BEAM_AGENT_KIND`, Claude Code by default) in the workspace's root pane and sends a first prompt. The agent list in the sidebar shows it working, then done. |
 | `status` | One card per Beam: whether it is in the sidebar, region, expiry, SSH address. Whether herdr can reach it is the dot on its sidebar entry. |
 | `services` | `beamctl list` on a Beam, then follow one service's logs. |
-| `publish` | Exposes port 8080 of a Beam as a Teleport application and prints its URL (web address). |
+| `publish` | Exposes port 8080 of a Beam as a Teleport application and prints its URL. |
 | `rm` | Deletes a Beam and its sidebar entry. Asks first from the menu, not from a keybinding. |
 | `rm-all` | Lists every Beam on the tenant, then deletes them all with their sidebar entries. Asks once from the menu, not from a keybinding. |
 | `demo` | The scripted walkthrough, with a pause before each step (see [Demo](#demo)). |
@@ -162,7 +162,7 @@ Each point is a mechanism you can check, not a claim. The Beams behaviour is in 
   its service manager. A dev server started with `beamctl start` keeps running after
   every shell closes, and an agent can start one itself.
 - **Publish without a load balancer.** `tsh beams publish` turns port 8080 into a
-  Teleport application served over HTTPS (Hypertext Transfer Protocol Secure): an
+  Teleport application served over HTTPS: an
   address only your login can open, with every request in the audit log. Port 8080 is
   the only port the beta publishes.
 - **Expiry is the cleanup.** Beams live 24 hours. Nothing accumulates.
@@ -319,8 +319,8 @@ for Beams are ordinary herdr machines; remove any left with `herdr machine remov
   `TELEPORT_CLUSTER= tsh login --proxy=<tenant>.beams.sh` (the empty
   `TELEPORT_CLUSTER` matters when that variable is set in your shell).
 - **`no Beam named <id>`.** The id is checked against `tsh beams ls` before anything
-  runs. Beams have a short id (`neon-panel`) and a UUID (universally unique
-  identifier); the popups take the short id.
+  runs. Beams have a short id (`neon-panel`) and a UUID; the popups take the short
+  id.
 - **`Beam <id> exists without a sidebar entry`.** The `new` popup failed after the
   Beam was created (SSH never came up, or the install failed). Remove it with the `rm`
   popup or `bash bin/beam-rm.sh <id>`, or fix the cause and run `new` again; the
