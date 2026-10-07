@@ -46,6 +46,9 @@ people as much as to coding agents. The ones that matter most:
   when stdout is not a terminal.
 - Bump `version` in `herdr-plugin.toml` and add a line to [CHANGELOG.md](CHANGELOG.md)
   when behaviour changes. README changes go with any user-visible change.
+- Every version gets a tag (`git tag -a v0.7.0`) and a GitHub release whose notes are
+  the CHANGELOG entry, so `herdr plugin install jsabo/herdr-beams --ref v0.7.0` pins a
+  revision someone has read.
 
 ## Screenshots
 

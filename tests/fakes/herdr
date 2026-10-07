@@ -18,10 +18,21 @@ case "${1:-} ${2:-}" in
     fi
     target="$3"
     label="$5"
-    jq --arg t "$target" --arg l "$label" \
-      '. + [{id: ("id-" + $l), label: $l, target: $t, session: "default", enabled: true, selected: false}]' \
+    # Profile ids are id-<beam id>, whatever the label prefix, so tests can
+    # assert on `machine remove id-new-beam` without knowing the label form.
+    pid="id-${label##*/}"
+    jq --arg t "$target" --arg l "$label" --arg p "$pid" \
+      '. + [{id: $p, label: $l, target: $t, session: "default", enabled: true, selected: false}]' \
       "$machines" > "$machines.tmp" && mv "$machines.tmp" "$machines"
-    printf 'Saved SSH machine id-%s. Remote server is ready.\n' "$label"
+    printf 'Saved SSH machine %s. Remote server is ready.\n' "$pid"
+    ;;
+  "machine rename")
+    # herdr machine rename <profile-id> --label <label>; the real 0.9.3 binary
+    # rejects --label first, so the fake is as strict.
+    [ "${4:-}" = --label ] || { echo "usage: herdr machine rename <profile-id> --label <label>" >&2; exit 1; }
+    jq --arg id "$3" --arg l "$5" 'map(if .id == $id then .label = $l else . end)' \
+      "$machines" > "$machines.tmp" && mv "$machines.tmp" "$machines"
+    printf 'Renamed SSH machine %s.\n' "$3"
     ;;
   "machine remove")
     jq --arg id "$3" 'map(select(.id != $id))' "$machines" > "$machines.tmp" && mv "$machines.tmp" "$machines"

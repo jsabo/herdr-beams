@@ -7,7 +7,7 @@ setup() { setup_fakes; }
   run_script beam-status.sh
   [ "$status" -eq 0 ]
   [[ "${lines[0]}" == "Teleport Beams · Beam status · example.beams.sh" ]]
-  [[ "$output" == *"╭─ alpha-one"*"● in the sidebar · us-west-2"*"expires 2030-01-01 10:00 UTC · in "*"ssh beams@aaaaaaaa-0000-4000-8000-000000000001.example.beams.sh"*"╰─"* ]]
+  [[ "$output" == *"╭─ alpha-one"*"● in the sidebar as beam/alpha-one · us-west-2"*"expires 2030-01-01 10:00 UTC · in "*"ssh beams@aaaaaaaa-0000-4000-8000-000000000001.example.beams.sh"*"╰─"* ]]
   [[ "$output" == *"╭─ beta-two"*"○ no sidebar entry · us-east-1"*"expires 2030-01-01 11:00 UTC"*"ssh beams@bbbbbbbb-0000-4000-8000-000000000002.example.beams.sh"* ]]
 }
 

@@ -17,6 +17,9 @@ setup_file() {
   cd "$REPO" || exit 1
 }
 
+# The sidebar label and `--machine` selector for a Beam, as bin/common.sh builds it.
+machine_of() { printf '%s%s' "${BEAM_LABEL_PREFIX-beam/}" "$1"; }
+
 # The Beam this run created: present now, absent before.
 new_beam() {
   # shellcheck disable=SC1091
@@ -38,7 +41,7 @@ teardown_file() {
   [ "$status" -eq 0 ]
   id="$(new_beam)"
   [ -n "$id" ]
-  run herdr machine status "$id" --json
+  run herdr machine status "$(machine_of "$id")" --json
   [ "$status" -eq 0 ]
   [[ "$output" == *'"status": "reachable"'* ]]
 }
@@ -49,7 +52,7 @@ teardown_file() {
   [ "$status" -eq 0 ]
   for _ in $(seq 1 30); do
     # a fresh Beam has exactly one agent; its name follows BEAM_AGENT_KIND, not the workspace label
-    state="$(herdr --machine "$id" agent list | jq -r '.result.agents[0].agent_status')"
+    state="$(herdr --machine "$(machine_of "$id")" agent list | jq -r '.result.agents[0].agent_status')"
     [ "$state" = done ] && break
     sleep 2
   done

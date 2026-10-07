@@ -21,7 +21,7 @@ fi
 beams_json | jq -r '.[] | [.id, .region, .expires, .uuid] | @tsv' \
 | while IFS=$'\t' read -r id region expires uuid; do
     if [ -n "$(machine_id "$id")" ]; then
-      st="in the sidebar"
+      st="in the sidebar as $(machine_label "$id")"
       glyph="$C_OK$G_OK$C_RESET"
     else
       st="no sidebar entry"
@@ -36,5 +36,5 @@ beams_json | jq -r '.[] | [.id, .region, .expires, .uuid] | @tsv' \
 
 printf '\n'
 note "drive one from any shell:"
-show_cmd "herdr --machine <beam> agent list"
+show_cmd "herdr --machine $(machine_label '<beam>') agent list"
 pause

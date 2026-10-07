@@ -8,13 +8,14 @@ description: Run coding agents inside Teleport Beams (ephemeral sandbox VMs) fro
 A Beam is a short-lived Linux VM from Teleport Cloud. It carries the user's delegated
 Teleport identity, a proxied model endpoint (`ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`,
 no API keys), and expires after 24 hours. herdr treats each Beam as a saved SSH
-machine, so every herdr command works there with the `--machine <beam-id>` prefix.
+machine labelled `beam/<beam-id>`, so every herdr command works there with the
+`--machine beam/<beam-id>` prefix (the label is the selector; the bare id is not).
 
 ## Check first
 
 ```bash
 test "${HERDR_ENV:-}" = 1 || echo "not inside herdr"
-herdr machine list --json          # Beams appear with their id as the label
+herdr machine list --json          # Beams appear as beam/<beam-id>; the target holds the uuid
 herdr plugin list                  # the herdr-beams line shows where the plugin lives
 ```
 
@@ -51,10 +52,10 @@ workspace goes from `working` straight to `idle` with no `done` and no notificat
 The pieces, if you need them:
 
 ```bash
-herdr --machine <beam-id> workspace create --cwd '~' --label <label> --no-focus   # .result.root_pane.pane_id
-herdr --machine <beam-id> agent start claude --kind claude --pane <pane-id> -- --dangerously-skip-permissions
-herdr --machine <beam-id> agent prompt claude "<prompt>" --wait --timeout 600000
-herdr --machine <beam-id> agent read claude
+herdr --machine beam/<beam-id> workspace create --cwd '~' --label <label> --no-focus   # .result.root_pane.pane_id
+herdr --machine beam/<beam-id> agent start claude --kind claude --pane <pane-id> -- --dangerously-skip-permissions
+herdr --machine beam/<beam-id> agent prompt claude "<prompt>" --wait --timeout 600000
+herdr --machine beam/<beam-id> agent read claude
 ```
 
 Agents in a Beam run with permissions skipped by design; the sandbox, Teleport RBAC

@@ -194,6 +194,37 @@ common() { run bash -c ". bin/common.sh; $1" </dev/null; }
   [ -z "$output" ]
 }
 
+@test "machine_label is beam/<id>, and BEAM_LABEL_PREFIX in the settings file changes it" {
+  common 'machine_label neon-panel'
+  [ "$output" = "beam/neon-panel" ]
+  printf 'BEAMS_PROXY=example.beams.sh\nBEAM_LABEL_PREFIX=\n' > "$HERDR_PLUGIN_CONFIG_DIR/env"
+  common 'machine_label neon-panel'
+  [ "$output" = "neon-panel" ]
+  printf 'BEAMS_PROXY=example.beams.sh\nBEAM_LABEL_PREFIX=sandbox/\n' > "$HERDR_PLUGIN_CONFIG_DIR/env"
+  common 'machine_label neon-panel'
+  [ "$output" = "sandbox/neon-panel" ]
+}
+
+@test "profiles are matched by the uuid in their target, whatever their label" {
+  # an entry made by an older plugin version, labelled with the bare id
+  jq 'map(if .id == "id-alpha-one" then .label = "alpha-one" else . end)' \
+    "$FAKE_STATE/machines.json" > "$FAKE_STATE/m.tmp" && mv "$FAKE_STATE/m.tmp" "$FAKE_STATE/machines.json"
+  common 'machine_id alpha-one'
+  [ "$output" = "id-alpha-one" ]
+  select_machine alpha-one
+  common 'selected_beam'
+  [ "$output" = "alpha-one" ]
+  common 'machine_label_of id-alpha-one'
+  [ "$output" = "alpha-one" ]
+}
+
+@test "selected_beam is empty when the selected Beam profile has no Beam behind it" {
+  select_machine gone-beam
+  common 'selected_beam'
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
 @test "phase prints the elapsed time and the text" {
   common 'phase "hello"'
   [[ "$output" =~ ^✓\ \[\+\ *[0-9.]+s\]\ hello$ ]]

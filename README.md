@@ -116,7 +116,7 @@ the same id, so `herdr plugin action invoke herdr-beams.<id>` opens it from any 
 
 | Entry | What it does |
 |---|---|
-| `new` | Creates a Beam, installs herdr on it, adds it to the sidebar with the Beam's id as the label, and offers to start an agent. Prints a tick and a timestamp per phase. |
+| `new` | Creates a Beam, installs herdr on it, adds it to the sidebar as `beam/<id>`, and offers to start an agent. Prints a tick and a timestamp per phase. |
 | `agent` | Picks a Beam (or creates one when there is none), opens a workspace on it, starts the agent (`BEAM_AGENT_KIND`, Claude Code by default) in the workspace's root pane and sends a first prompt. The agent list in the sidebar shows it working, then done. |
 | `status` | One card per Beam: whether it is in the sidebar, region, expiry, SSH address. Whether herdr can reach it is the dot on its sidebar entry. |
 | `services` | `beamctl list` on a Beam, then follow one service's logs. |
@@ -169,7 +169,7 @@ Each point is a mechanism you can check, not a claim. The Beams behaviour is in 
 
 herdr adds the part Beams do not have: one sidebar for your laptop and every Beam, an
 agent state (`working`, `blocked`, `done`) you can see and get notified about, and
-`herdr --machine <beam>`, which forwards any herdr command to the Beam's own herdr
+`herdr --machine beam/<id>`, which forwards any herdr command to the Beam's own herdr
 server so a shell, a script or another agent can drive what runs there. Beams is the
 runtime you can trust with your identity; herdr is the place you can see and drive
 every agent. Neither does the other's job.
@@ -204,7 +204,7 @@ scripts in `bin/`, and they do exactly this:
 
 - **Commands it issues**: `tsh --proxy=<BEAMS_PROXY> beams ls|add|rm|publish`,
   `ssh beams@<uuid>.<tenant>` (through your SSH config, one shared connection per
-  Beam), `herdr machine add|remove|status|list`, and `herdr --machine <beam> …` for
+  Beam), `herdr machine add|rename|remove|list`, and `herdr --machine beam/<id> …` for
   workspaces and agents on the Beam.
 - **On the Beam, once**: `curl -fsSL https://herdr.dev/install.sh | sh` if herdr is
   missing, `herdr integration install <BEAM_AGENT_KIND>`, and a section
@@ -223,8 +223,14 @@ scripts in `bin/`, and they do exactly this:
   and there is no one at the keyboard to answer prompts. Set `BEAM_AGENT_ARGS=""` to
   keep the prompts.
 
-Listings on herdr.dev are not reviewed by herdr. Read `bin/` before you install;
-it is short.
+herdr does not review or sandbox plugin code, and listings on herdr.dev are not
+reviewed either; a plugin runs as your user with your environment, like any editor or
+shell extension. Its own guidance is to read the manifest and the scripts before you
+install, and this plugin is built to make that short: `herdr-plugin.toml` names every
+command it can run, each is a bash script in `bin/` that does one thing, and
+`herdr plugin install` shows you the startup command (`bin/beam-reconcile.sh`) before
+it registers anything. To run the revision you read rather than whatever `main` holds
+later, pin a release tag: `herdr plugin install jsabo/herdr-beams --ref v0.7.0`.
 
 ## Settings
 
@@ -244,9 +250,9 @@ Everything a popup does is also a plain command. The whole surface is herdr's
 `--machine` prefix:
 
 ```sh
-herdr --machine neon-panel workspace create --cwd '~' --label api --no-focus
-herdr --machine neon-panel agent start claude --kind claude --pane w2:p1 -- --dangerously-skip-permissions
-herdr --machine neon-panel agent prompt claude "Read SPEC.md and start." --wait --timeout 600000
+herdr --machine beam/neon-panel workspace create --cwd '~' --label api --no-focus
+herdr --machine beam/neon-panel agent start claude --kind claude --pane w2:p1 -- --dangerously-skip-permissions
+herdr --machine beam/neon-panel agent prompt claude "Read SPEC.md and start." --wait --timeout 600000
 ```
 
 The scripts in `bin/` take their arguments on the command line and never ask a question
@@ -309,7 +315,7 @@ for Beams are ordinary herdr machines; remove any left with `herdr machine remov
   `~/.profile`, not `~/.zshrc`; if `herdr` is not on that PATH, write its full path.
 - **A keybinding does nothing while a Beam is selected in the sidebar.** herdr sends
   a plugin action to the selected machine's server, and the herdr on a Beam has no
-  plugins (`herdr --machine <id> plugin list` says so). Select Local, then press the
+  plugins (`herdr --machine beam/<id> plugin list` says so). Select Local, then press the
   chord, or run `herdr plugin action invoke herdr-beams.<id>` from a shell.
 - **You cannot select text in a popup.** herdr captures the mouse for its own
   selection. Hold Shift while you drag; the terminal then selects natively and Cmd+C

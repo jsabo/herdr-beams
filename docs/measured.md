@@ -62,6 +62,22 @@ The plugin's ssh calls to one Beam share a connection (`ControlMaster`), and the
 install, the integration and the notes travel in one SSH session, so a new Beam costs
 one readiness probe plus one session.
 
+## The sidebar label (2026-10-07, herdr 0.9.3)
+
+- A saved machine has one visible field in the machines rail, its label. `herdr
+  machine add --help` and `machine rename --help` take nothing else, `machine list
+  --json` returns `id, label, target, session, enabled, selected`, and the v0.9.3
+  config reference has row layouts for `ui.sidebar.agents` and `ui.sidebar.spaces`
+  only. So `beam/<id>` is how a Beam is told from an ordinary host.
+- `herdr machine rename` wants the profile id first: `rename <profile-id> --label
+  <label>`. The binary's `--help` prints `--label <LABEL> <PROFILE_ID>`, and that
+  order is rejected with `usage: herdr machine rename <profile-id> --label <label>`.
+  The 0.9.0 docs (`connecting-machines`) show the order that works. Renaming the one
+  existing profile from the startup hook took 3.9 s end to end, the Beam listing
+  and two machine listings included.
+- A `/` in a label is accepted by `machine add`, `machine rename` and as the
+  `--machine` selector (`herdr --machine beam/<id> pane list`).
+
 ## herdr inside a Beam
 
 - The Beam's `herdr server` has process id (PID) 1 as its parent and stays up after

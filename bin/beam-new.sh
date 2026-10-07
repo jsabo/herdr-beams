@@ -43,11 +43,12 @@ phase "$version installed, $BEAM_AGENT_KIND integration and Beam notes in place"
 
 # herdr's own discovery and server start on the Beam; about five seconds.
 busy "starting herdr's server on the Beam"
-"$HERDR" machine add "ssh://$host" --label "$id" </dev/null >/dev/null
+machine="$(machine_label "$id")"
+"$HERDR" machine add "ssh://$host" --label "$machine" </dev/null >/dev/null
 refresh_machines
 save_state
 FAIL_HINT=""
-phase "$id is in the sidebar; its herdr server is running"
+phase "$id is in the sidebar as $machine; its herdr server is running"
 
 printf '\n'
 card_open "$id"
@@ -57,7 +58,7 @@ card_line "ssh $host"
 card_close
 printf '\n'
 note "from any shell:"
-show_cmd "herdr --machine $id pane list"
+show_cmd "herdr --machine $machine pane list"
 
 if [ "$then_agent" = 1 ]; then
   printf '\n'

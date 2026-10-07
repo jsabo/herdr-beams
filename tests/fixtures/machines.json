@@ -1,7 +1,7 @@
 [
   {
     "id": "id-alpha-one",
-    "label": "alpha-one",
+    "label": "beam/alpha-one",
     "target": "ssh://beams@aaaaaaaa-0000-4000-8000-000000000001.example.beams.sh",
     "session": "default",
     "enabled": true,

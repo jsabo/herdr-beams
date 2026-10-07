@@ -27,9 +27,10 @@ calls() { cat "$FAKE_LOG"; }
 beams_state() { cat "$FAKE_STATE/beams.json"; }
 machines_state() { cat "$FAKE_STATE/machines.json"; }
 
-# Mark the selected machine in the fixture, as the sidebar would.
+# Mark the selected machine in the fixture, as the sidebar would. Takes a Beam
+# id (its profile is labelled beam/<id>) or a plain label such as workbox.
 select_machine() {
-  jq --arg l "$1" 'map(.selected = (.label == $l))' "$FAKE_STATE/machines.json" \
+  jq --arg l "$1" 'map(.selected = (.label == $l or .label == "beam/" + $l))' "$FAKE_STATE/machines.json" \
     > "$FAKE_STATE/machines.json.tmp" && mv "$FAKE_STATE/machines.json.tmp" "$FAKE_STATE/machines.json"
 }
 

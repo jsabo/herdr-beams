@@ -21,6 +21,10 @@ BEAMS_TENANT="${BEAMS_PROXY%%:*}"
 BEAM_LOGIN="${BEAM_LOGIN:-beams}"
 BEAM_AGENT_KIND="${BEAM_AGENT_KIND:-claude}"
 BEAM_AGENT_ARGS="${BEAM_AGENT_ARGS:---dangerously-skip-permissions}"
+# Sidebar label prefix. herdr shows a machine as its label and nothing else, so
+# this is what tells a Beam from an ordinary SSH host in the machines rail:
+# `beam/neon-panel`, in herdr's own host/session label style. Empty for bare ids.
+BEAM_LABEL_PREFIX="${BEAM_LABEL_PREFIX-beam/}"
 
 # ---- look -----------------------------------------------------------------
 #
@@ -206,8 +210,24 @@ beam_uuid() { beams_json | jq -er --arg id "$1" '.[] | select(.id == $id) | .uui
 
 beam_host() { printf '%s@%s.%s' "$BEAM_LOGIN" "$1" "$BEAMS_TENANT"; }
 
-# herdr profile id for a Beam id (profiles are labelled with the Beam id).
-machine_id() { machines_json | jq -r --arg l "$1" '.[] | select(.label == $l) | .id'; }
+# The sidebar label for a Beam, and the `herdr --machine` selector for it.
+machine_label() { printf '%s%s' "$BEAM_LABEL_PREFIX" "$1"; }
+
+# Profiles are matched by the uuid in their target, never by label, so an entry
+# made by an older plugin version (or relabelled by hand) is still recognised.
+machine_id_for_uuid() {
+  machines_json | jq -r --arg u "@$1." '.[] | select(.target | contains($u)) | .id'
+}
+
+# herdr profile id for a Beam id; empty when the Beam has no sidebar entry.
+machine_id() {
+  local uuid
+  uuid="$(beam_uuid "$1" 2>/dev/null)" || return 0
+  machine_id_for_uuid "$uuid"
+}
+
+# Current label of a profile, by profile id.
+machine_label_of() { machines_json | jq -r --arg p "$1" '.[] | select(.id == $p) | .label'; }
 
 # Profiles that point at this tenant: id, target, label.
 beam_machines_tsv() {
@@ -215,10 +235,17 @@ beam_machines_tsv() {
     '.[] | select(.target | endswith($t)) | [.id, .target, .label] | @tsv'
 }
 
-# Beam id of the machine currently selected in the sidebar, if it is a Beam.
+# Beam id of the machine currently selected in the sidebar, if it is a Beam
+# that still exists. The id comes from the Beam list, keyed by the uuid in the
+# profile's target, so the label plays no part.
 selected_beam() {
-  machines_json | jq -r --arg t ".$BEAMS_TENANT" \
-    '.[] | select(.selected and (.target | endswith($t))) | .label'
+  local target uuid
+  target="$(machines_json | jq -r --arg t ".$BEAMS_TENANT" \
+    '.[] | select(.selected and (.target | endswith($t))) | .target')"
+  [ -n "$target" ] || return 0
+  uuid="${target#ssh://*@}"
+  uuid="${uuid%%.*}"
+  beams_json | jq -r --arg u "$uuid" '.[] | select(.uuid == $u) | .id'
 }
 
 # Drop sidebar entries whose Beam has expired or been deleted. Uses only the

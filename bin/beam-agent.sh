@@ -33,6 +33,7 @@ if [ -z "${1:-}" ] && [ "$(beams_json | jq 'length')" -eq 0 ] && interactive; th
 fi
 
 id="$(pick_beam "${1:-}")"
+machine="$(machine_label "$id")"
 label="${2:-}"
 shift $(( $# > 2 ? 2 : $# ))
 prompt="$*"
@@ -49,9 +50,9 @@ fi
 # The agent list (for the name) and the workspace are independent, and each
 # is a round trip to the Beam's herdr, so both run at once.
 taken_json="$(mktemp)"
-"$HERDR" --machine "$id" agent list > "$taken_json" &
+"$HERDR" --machine "$machine" agent list > "$taken_json" &
 list_pid=$!
-created="$("$HERDR" --machine "$id" workspace create --cwd '~' --label "$label" --no-focus)"
+created="$("$HERDR" --machine "$machine" workspace create --cwd '~' --label "$label" --no-focus)"
 wait "$list_pid" || die "could not list the agents on $id"
 pane="$(jq -r .result.root_pane.pane_id <<<"$created")"
 phase "workspace $label on $id, pane $pane"
@@ -67,11 +68,11 @@ while grep -qx "$agent" <<<"$taken"; do
 done
 
 # shellcheck disable=SC2086
-"$HERDR" --machine "$id" agent start "$agent" --kind "$BEAM_AGENT_KIND" --pane "$pane" -- $BEAM_AGENT_ARGS >/dev/null
+"$HERDR" --machine "$machine" agent start "$agent" --kind "$BEAM_AGENT_KIND" --pane "$pane" -- $BEAM_AGENT_ARGS >/dev/null
 phase "$BEAM_AGENT_KIND is ready as agent $agent"
 
 if [ -n "$prompt" ]; then
-  "$HERDR" --machine "$id" agent prompt "$agent" "$prompt" >/dev/null
+  "$HERDR" --machine "$machine" agent prompt "$agent" "$prompt" >/dev/null
   phase "prompt sent; the agent list shows $agent as working"
 fi
 
@@ -82,7 +83,7 @@ if [ -n "$prompt" ]; then
 else
   card_line "$C_OK$G_OK$C_RESET idle, waiting for a prompt · pane $pane"
 fi
-card_line "watch it:   herdr --machine $id agent read $agent"
-card_line "prompt it:  herdr --machine $id agent prompt $agent \"...\" --wait"
+card_line "watch it:   herdr --machine $machine agent read $agent"
+card_line "prompt it:  herdr --machine $machine agent prompt $agent \"...\" --wait"
 card_close
 pause

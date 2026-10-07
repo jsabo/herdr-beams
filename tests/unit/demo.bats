@@ -65,7 +65,7 @@ run_demo() { run env DEMO_AUTO=1 "$@" bash demo/demo.sh </dev/null; }
   run_demo
   [[ "$output" != *"bash -c"* ]]
   [[ "$output" != *"tee "* ]]
-  [[ "$output" == *'$ herdr --machine new-beam agent wait claude --timeout 600000'* ]]
+  [[ "$output" == *'$ herdr --machine beam/new-beam agent wait claude --timeout 600000'* ]]
   [[ "$output" == *'$ bash bin/beam-publish.sh new-beam http'* ]]
 }
 
@@ -84,7 +84,7 @@ run_demo() { run env DEMO_AUTO=1 "$@" bash demo/demo.sh </dev/null; }
   run_demo
   [ "$status" -eq 0 ]
   grep -q "agent start claude.*" "$FAKE_LOG"
-  grep -q "^herdr --machine new-beam workspace create" "$FAKE_LOG"
+  grep -q "^herdr --machine beam/new-beam workspace create" "$FAKE_LOG"
   ! grep -q "machine aaaa-other" "$FAKE_LOG"
   grep -q "beams rm new-beam$" "$FAKE_LOG"
   ! grep -q "beams rm aaaa-other" "$FAKE_LOG"
@@ -103,13 +103,13 @@ run_demo() { run env DEMO_AUTO=1 "$@" bash demo/demo.sh </dev/null; }
   host="beams@cccccccc-0000-4000-8000-000000000003.example.beams.sh"
   expected=(
     "tsh --proxy=example.beams.sh beams add --no-console -f json"
-    "herdr machine add ssh://$host --label new-beam"
-    "herdr --machine new-beam workspace create --cwd ~ --label flask-app --no-focus"
-    "herdr --machine new-beam agent start claude --kind claude --pane w9:p1 -- --dangerously-skip-permissions"
-    "herdr --machine new-beam agent prompt claude "
-    "herdr --machine new-beam agent wait claude --until working --timeout 20000"
-    "herdr --machine new-beam agent wait claude --timeout 600000"
-    "herdr --machine new-beam agent read claude --lines 40"
+    "herdr machine add ssh://$host --label beam/new-beam"
+    "herdr --machine beam/new-beam workspace create --cwd ~ --label flask-app --no-focus"
+    "herdr --machine beam/new-beam agent start claude --kind claude --pane w9:p1 -- --dangerously-skip-permissions"
+    "herdr --machine beam/new-beam agent prompt claude "
+    "herdr --machine beam/new-beam agent wait claude --until working --timeout 20000"
+    "herdr --machine beam/new-beam agent wait claude --timeout 600000"
+    "herdr --machine beam/new-beam agent read claude --lines 40"
     "$host beamctl list"
     "$host curl -s localhost:8080"
     "tsh --proxy=example.beams.sh beams publish new-beam"
@@ -133,7 +133,7 @@ run_demo() { run env DEMO_AUTO=1 "$@" bash demo/demo.sh </dev/null; }
 @test "demo: DEMO_PROMPT replaces the task and skips the app steps" {
   run_demo DEMO_PROMPT="write a haiku"
   [ "$status" -eq 0 ]
-  grep -q "^herdr --machine new-beam agent prompt claude write a haiku$" "$FAKE_LOG"
+  grep -q "^herdr --machine beam/new-beam agent prompt claude write a haiku$" "$FAKE_LOG"
   grep -q -- "--label task --no-focus" "$FAKE_LOG"
   grep -q "agent read claude --lines 40" "$FAKE_LOG"
   ! grep -q "beamctl list" "$FAKE_LOG"

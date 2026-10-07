@@ -10,11 +10,11 @@ setup() { setup_fakes; }
   [[ "$output" == *"claude is ready as agent claude"* ]]
   [[ "$output" == *"prompt sent"* ]]
   calls_in_order \
-    "herdr --machine alpha-one workspace create --cwd ~ --label api --no-focus" \
-    "herdr --machine alpha-one agent start claude --kind claude --pane w9:p1 -- --dangerously-skip-permissions" \
-    "herdr --machine alpha-one agent prompt claude Read SPEC.md and start."
+    "herdr --machine beam/alpha-one workspace create --cwd ~ --label api --no-focus" \
+    "herdr --machine beam/alpha-one agent start claude --kind claude --pane w9:p1 -- --dangerously-skip-permissions" \
+    "herdr --machine beam/alpha-one agent prompt claude Read SPEC.md and start."
   # the name check runs alongside the workspace create, so only its presence is fixed
-  [ "$(call_count 'herdr --machine alpha-one agent list')" -eq 1 ]
+  [ "$(call_count 'herdr --machine beam/alpha-one agent list')" -eq 1 ]
   calls_in_order "agent list" "agent start"
 }
 
@@ -38,20 +38,20 @@ setup() { setup_fakes; }
 @test "agent: the workspace label is used as given" {
   run_script beam-agent.sh alpha-one "My API Server!"
   [ "$status" -eq 0 ]
-  grep -q "^herdr --machine alpha-one workspace create --cwd ~ --label My API Server! --no-focus$" "$FAKE_LOG"
+  grep -q "^herdr --machine beam/alpha-one workspace create --cwd ~ --label My API Server! --no-focus$" "$FAKE_LOG"
 }
 
 @test "agent: prints how to watch the agent before the slow parts" {
   run_script beam-agent.sh alpha-one api
   [ "$status" -eq 0 ]
   calls_in_order "workspace create" "agent start"
-  [[ "$output" == *"watch it:   herdr --machine alpha-one agent read claude"* ]]
+  [[ "$output" == *"watch it:   herdr --machine beam/alpha-one agent read claude"* ]]
 }
 
 @test "agent: a prompt with several words is passed as one argument" {
   run_script beam-agent.sh alpha-one api fix the failing test
   [ "$status" -eq 0 ]
-  grep -q "^herdr --machine alpha-one agent prompt claude fix the failing test$" "$FAKE_LOG"
+  grep -q "^herdr --machine beam/alpha-one agent prompt claude fix the failing test$" "$FAKE_LOG"
 }
 
 @test "agent: without a prompt and without a terminal it only starts the agent" {
@@ -85,7 +85,7 @@ setup() { setup_fakes; }
   select_machine alpha-one
   run_script beam-agent.sh "" api
   [ "$status" -eq 0 ]
-  grep -q "^herdr --machine alpha-one agent list$" "$FAKE_LOG"
+  grep -q "^herdr --machine beam/alpha-one agent list$" "$FAKE_LOG"
 }
 
 @test "agent: refuses to guess the Beam without a terminal" {
@@ -119,8 +119,8 @@ setup() { setup_fakes; }
   [[ "$output" != *"Start a claude agent in it now?"* ]]
   [[ "$output" == *"Workspace label [work]:"* ]]
   calls_in_order "beams add --no-console -f json" "herdr machine add" \
-    "herdr --machine new-beam workspace create --cwd ~ --label work --no-focus" \
-    "herdr --machine new-beam agent start claude"
+    "herdr --machine beam/new-beam workspace create --cwd ~ --label work --no-focus" \
+    "herdr --machine beam/new-beam agent start claude"
 }
 
 @test "agent: from a keybinding with no Beams, creates one and starts the agent without any y/N" {

@@ -22,12 +22,25 @@ export BEAMS_JSON
 quick_reconcile
 
 # Beams without a profile. Non-interactive add only succeeds when herdr is
-# already on the Beam, which is exactly the case we want to pick up.
+# already on the Beam, which is exactly the case we want to pick up. A profile
+# whose label is not the current form (made by an older plugin version, or
+# BEAM_LABEL_PREFIX changed) is renamed in place: no SSH, one herdr call.
 while IFS=$'\t' read -r id uuid; do
-  if [ -z "$(machine_id "$id")" ]; then
+  label="$(machine_label "$id")"
+  pid="$(machine_id_for_uuid "$uuid")"
+  if [ -n "$pid" ]; then
+    old="$(machine_label_of "$pid")"
+    if [ "$old" != "$label" ]; then
+      # herdr 0.9.3 wants the profile id before --label; its --help shows the
+      # other order and the parser rejects it (docs/measured.md).
+      "$HERDR" machine rename "$pid" --label "$label" >/dev/null
+      printf 'beams: relabelled %s as %s\n' "$old" "$label"
+      refresh_machines
+    fi
+  else
     host="$(beam_host "$uuid")"
-    if "$HERDR" machine add "ssh://$host" --label "$id" </dev/null >/dev/null 2>&1; then
-      printf 'beams: added profile for %s\n' "$id"
+    if "$HERDR" machine add "ssh://$host" --label "$label" </dev/null >/dev/null 2>&1; then
+      printf 'beams: added profile for %s as %s\n' "$id" "$label"
       refresh_machines
     else
       printf 'beams: %s has no herdr yet; use the New Beam pane or run beam-agent\n' "$id"

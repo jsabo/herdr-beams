@@ -110,22 +110,23 @@ refresh_beams
 refresh_machines
 id="$(created_id)"
 [ -n "$id" ] || die "beam-new did not report a new Beam"
-say "The machine list in the sidebar now shows $id. Its herdr server is running inside the sandbox, with your delegated identity and the tenant's model endpoint."
+machine="$(machine_label "$id")"
+say "The machine list in the sidebar now shows $machine. Its herdr server is running inside the sandbox, with your delegated identity and the tenant's model endpoint."
 
 step "Start $BEAM_AGENT_KIND in the Beam and give it the task" \
   bash bin/beam-agent.sh "$id" "$DEMO_WORKSPACE" "$DEMO_PROMPT" </dev/null
 say "No API key was configured. The Beam's environment points the agent at the proxied endpoint, and it runs with permissions skipped: the sandbox and Teleport are the guardrails."
 
-"$HERDR" --machine "$id" agent wait "$BEAM_AGENT_KIND" --until working --timeout 20000 >/dev/null 2>&1 || true
+"$HERDR" --machine "$machine" agent wait "$BEAM_AGENT_KIND" --until working --timeout 20000 >/dev/null 2>&1 || true
 wait_out="$(mktemp)"
 step_sh "Wait for the agent to finish, then read what it did" \
-  "$HERDR --machine '$id' agent wait '$BEAM_AGENT_KIND' --timeout 600000 | tee '$wait_out'" \
-  "$HERDR --machine $id agent wait $BEAM_AGENT_KIND --timeout 600000" || true
+  "$HERDR --machine '$machine' agent wait '$BEAM_AGENT_KIND' --timeout 600000 | tee '$wait_out'" \
+  "$HERDR --machine $machine agent wait $BEAM_AGENT_KIND --timeout 600000" || true
 state="$(jq -r '.result.agent.agent_status // empty' "$wait_out" 2>/dev/null || true)"
 rm -f "$wait_out"
 # 40 lines: Claude Code's input box takes the last dozen, a short answer sits above it.
 substep "The agent's last lines" \
-  "$HERDR" --machine "$id" agent read "$BEAM_AGENT_KIND" --lines 40
+  "$HERDR" --machine "$machine" agent read "$BEAM_AGENT_KIND" --lines 40
 
 case "$state" in
   done)

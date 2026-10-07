@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0 (2026-10-07)
+
+- A Beam's sidebar entry is labelled `beam/<id>` (`beam/neon-panel`) instead of the
+  bare id, so the machines rail tells a Beam from an ordinary SSH host at a glance.
+  The label is also the `herdr --machine` selector, so copyable commands and the skill
+  now read `herdr --machine beam/<id> …`. `BEAM_LABEL_PREFIX` in the settings file
+  changes the prefix; an empty value gives bare ids again.
+- The startup hook renames entries made by earlier versions in place
+  (`herdr machine rename`); nothing is removed and re-added. The scripts now find a
+  Beam's profile by the uuid in its target rather than by its label, as herdr's own
+  docs advise, so a relabelled entry is still recognised.
+
 ## 0.6.1 (2026-10-06)
 
 - Ctrl+C is the way out of any popup. Every script now traps it and exits 130, and

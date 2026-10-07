@@ -17,7 +17,7 @@ host="beams@cccccccc-0000-4000-8000-000000000003.example.beams.sh"
     "tsh --proxy=example.beams.sh beams add --no-console -f json" \
     "$host true" \
     "curl -fsSL https://herdr.dev/install.sh | sh" \
-    "herdr machine add ssh://$host --label new-beam"
+    "herdr machine add ssh://$host --label beam/new-beam"
   # two failed probes, then one that succeeded
   [ "$(call_count "$host true")" -eq 3 ]
   grep -q "integration install claude" "$FAKE_LOG"
@@ -55,7 +55,7 @@ host="beams@cccccccc-0000-4000-8000-000000000003.example.beams.sh"
   run_interactive beam-new.sh <<<$'y\n\n\n'
   [ "$status" -eq 0 ]
   [[ "$output" == *"Start a claude agent in it now? [y/N]"* ]]
-  grep -q "^herdr --machine new-beam workspace create --cwd ~ --label work --no-focus$" "$FAKE_LOG"
+  grep -q "^herdr --machine beam/new-beam workspace create --cwd ~ --label work --no-focus$" "$FAKE_LOG"
 }
 
 @test "new: from a keybinding the offer stays, because it is also the close key" {
@@ -70,7 +70,7 @@ host="beams@cccccccc-0000-4000-8000-000000000003.example.beams.sh"
   [ "$status" -eq 0 ]
   [[ "$output" != *"Start a claude agent in it now?"* ]]
   [[ "$output" == *"Workspace label [work]:"* ]]
-  calls_in_order "herdr machine add" "herdr --machine new-beam workspace create --cwd ~ --label work --no-focus" "agent start claude"
+  calls_in_order "herdr machine add" "herdr --machine beam/new-beam workspace create --cwd ~ --label work --no-focus" "agent start claude"
 }
 
 @test "new: every phase line carries a timestamp" {
@@ -96,7 +96,7 @@ host="beams@cccccccc-0000-4000-8000-000000000003.example.beams.sh"
 @test "new: records the profile with the Beam's uuid host" {
   run_script beam-new.sh
   [ "$status" -eq 0 ]
-  run jq -r '.[] | select(.label == "new-beam") | .target' "$FAKE_STATE/machines.json"
+  run jq -r '.[] | select(.label == "beam/new-beam") | .target' "$FAKE_STATE/machines.json"
   [ "$output" = "ssh://$host" ]
 }
 
@@ -118,7 +118,7 @@ host="beams@cccccccc-0000-4000-8000-000000000003.example.beams.sh"
   printf 'BEAMS_PROXY=example.beams.sh\nBEAM_LOGIN=dev\nBEAM_AGENT_KIND=codex\n' > "$HERDR_PLUGIN_CONFIG_DIR/env"
   run_script beam-new.sh
   [ "$status" -eq 0 ]
-  grep -q "^herdr machine add ssh://dev@cccccccc-0000-4000-8000-000000000003.example.beams.sh --label new-beam$" "$FAKE_LOG"
+  grep -q "^herdr machine add ssh://dev@cccccccc-0000-4000-8000-000000000003.example.beams.sh --label beam/new-beam$" "$FAKE_LOG"
   grep -q "integration install codex" "$FAKE_LOG"
 }
 
