@@ -4,14 +4,17 @@
 [![herdr 0.9.1+](https://img.shields.io/badge/herdr-0.9.1%2B-8b5cf6)](https://herdr.dev)
 [![license Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-**Your coding agents in a trusted runtime that holds your identity, one keypress away.**
+**Your coding agents in a trusted runtime that holds your identity, one keybinding away.**
 
 A [herdr](https://herdr.dev) plugin for [Teleport Beams](https://beams.run).
 A Beam is an ephemeral, isolated runtime for an agent: a microVM (a small, fast virtual
-machine) that Teleport provisions with your identity delegated into it and connects to
-your infrastructure and inference endpoints. You press a key in herdr, the terminal
-workspace manager for coding agents, and the Beam appears in your sidebar as a machine.
-Press another and Claude Code is working in it as you, with no password typed and no
+machine) that Teleport provisions with your identity delegated into it, with a
+traceable link back to you, and connects to your infrastructure and inference
+endpoints without secrets. herdr is the terminal workspace manager where your coding
+agents already live: every agent on every machine in one sidebar, showing which is
+working, which is blocked and which is done. This plugin joins the two. One keybinding
+in herdr and a Beam appears in that sidebar as a machine. The next one starts a coding
+agent in it (Claude Code by default), working as you, with no password typed and no
 key copied. No API key exists on your laptop or in the Beam. When the work is done the
 Beam expires on its own: nothing to patch, nothing to clean up, and nothing left
 running that still holds your identity.
@@ -81,7 +84,7 @@ description = "remove every Beam"
 
 Then `herdr server reload-config`. `prefix` is herdr's prefix key, `ctrl+b` by
 default: press it, release, then press the letter. With these, `prefix+a` is the
-whole way in (with no Beam it creates one, then starts Claude Code in it) and
+whole way in (with no Beam it creates one, then starts the agent in it) and
 `prefix+shift+q` is the whole way out: every Beam deleted, every sidebar entry gone,
 and with them the agents, which run on the Beams. Then `prefix+q` detaches from herdr.
 
@@ -114,7 +117,7 @@ the same id, so `herdr plugin action invoke herdr-beams.<id>` opens it from any 
 | Entry | What it does |
 |---|---|
 | `new` | Creates a Beam, installs herdr on it, adds it to the sidebar with the Beam's id as the label, and offers to start an agent. Prints a tick and a timestamp per phase. |
-| `agent` | Picks a Beam (or creates one when there is none), opens a workspace on it, starts Claude Code in the workspace's root pane and sends a first prompt. The agent list in the sidebar shows it working, then done. |
+| `agent` | Picks a Beam (or creates one when there is none), opens a workspace on it, starts the agent (`BEAM_AGENT_KIND`, Claude Code by default) in the workspace's root pane and sends a first prompt. The agent list in the sidebar shows it working, then done. |
 | `status` | One card per Beam: whether it is in the sidebar, region, expiry, SSH address. Whether herdr can reach it is the dot on its sidebar entry. |
 | `services` | `beamctl list` on a Beam, then follow one service's logs. |
 | `publish` | Exposes port 8080 of a Beam as a Teleport application and prints its URL (web address). |
@@ -144,15 +147,17 @@ Each point is a mechanism you can check, not a claim. The Beams behaviour is in 
 [docs/measured.md](docs/measured.md).
 
 - **The agent acts as you, without your credentials.** A Beam carries a delegated
-  identity: a certificate issued for the Beam on your behalf, with a subset of your
-  roles. `tsh` inside the Beam is already logged in, and every SSH or database action
-  it takes is attributed in the audit log to you and to the Beam's own workload
+  identity: a certificate issued for the Beam on your behalf, with a traceable link
+  back to you. `tsh` inside the Beam is already logged in, and every SSH or database
+  action it takes is attributed in the audit log to you and to the Beam's own workload
   identity. The private key never leaves Teleport, and the Beam cannot use the identity
-  to mint new certificates for anything else.
+  to mint new certificates for anything else. In the beta the delegated identity holds
+  your role set; the delegation model is built for the next step, where a Beam gets a
+  narrower profile for the task and an agent requests more access when it needs it,
+  with a person or a reviewing model in the loop.
 - **No API keys exist.** The Beam's environment points `ANTHROPIC_BASE_URL` and
   `OPENAI_BASE_URL` at inference endpoints the tenant proxies; the "key" is a
   placeholder string. Nothing to rotate, nothing to leak, usage attributed per user.
-  Your inference, your harness.
 - **Services outlive sessions.** `beam-init` is the Beam's init process and `beamctl`
   its service manager. A dev server started with `beamctl start` keeps running after
   every shell closes, and an agent can start one itself.
@@ -165,7 +170,9 @@ Each point is a mechanism you can check, not a claim. The Beams behaviour is in 
 herdr adds the part Beams do not have: one sidebar for your laptop and every Beam, an
 agent state (`working`, `blocked`, `done`) you can see and get notified about, and
 `herdr --machine <beam>`, which forwards any herdr command to the Beam's own herdr
-server so a shell, a script or another agent can drive what runs there.
+server so a shell, a script or another agent can drive what runs there. Beams is the
+runtime you can trust with your identity; herdr is the place you can see and drive
+every agent. Neither does the other's job.
 
 | | Teleport Beams | herdr |
 |---|---|---|
@@ -200,7 +207,7 @@ scripts in `bin/`, and they do exactly this:
   Beam), `herdr machine add|remove|status|list`, and `herdr --machine <beam> …` for
   workspaces and agents on the Beam.
 - **On the Beam, once**: `curl -fsSL https://herdr.dev/install.sh | sh` if herdr is
-  missing, `herdr integration install claude`, and a section
+  missing, `herdr integration install <BEAM_AGENT_KIND>`, and a section
   `## Inside a Beam (added by herdr-beams)` appended to the Beam's `~/.claude/CLAUDE.md`
   and `~/AGENTS.md`. The text is `beam_notes` in `bin/common.sh`: the facts an agent
   otherwise spends its first minutes rediscovering (which `tsh` commands the delegated
@@ -227,7 +234,7 @@ it is short.
 |---|---|---|
 | `BEAMS_PROXY` | required | your tenant, `<name>.beams.sh` |
 | `BEAM_LOGIN` | `beams` | SSH login on the Beam |
-| `BEAM_AGENT_KIND` | `claude` | herdr agent kind started by `agent` and whose integration `new` installs |
+| `BEAM_AGENT_KIND` | `claude` | herdr agent kind started by `agent` and whose integration `new` installs; the Beam image ships `claude` and `codex`, any other kind needs its CLI installed on the Beam first |
 | `BEAM_AGENT_ARGS` | `--dangerously-skip-permissions` | arguments passed to the agent binary; quote more than one, for example `BEAM_AGENT_ARGS="--dangerously-skip-permissions --model opus"` to override the model the Beam image pins |
 | `BEAMS_YES` | unset | the actions set it to `1` so a keybinding deletes or creates without a y/N question; `BEAMS_YES=0` here overrides that and every popup asks again |
 

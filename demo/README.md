@@ -60,12 +60,12 @@ end."
 
 **2. Create a Beam, install herdr in it, add it to the sidebar (18 s).** "One command.
 Teleport is provisioning a microVM with my identity delegated into it: a certificate
-issued for the Beam, on my behalf, with a subset of my roles. Watch the machine list in
-the sidebar." When the entry appears: "That is a machine herdr can drive, with herdr
+issued for the Beam, on my behalf, with a traceable link back to me. Watch the machine
+list in the sidebar." When the entry appears: "That is a machine herdr can drive, with herdr
 already running inside the sandbox. I never typed a password, never copied a key."
 
-**3. Start Claude Code in the Beam and give it the task (9 s).** "I am starting Claude
-Code inside the Beam from my laptop and handing it a task. Watch the agent list:
+**3. Start the agent in the Beam and give it the task (9 s).** "I am starting the
+agent (Claude Code here) inside the Beam from my laptop and handing it a task. Watch the agent list:
 `working`." Then the point that lands: "There is no API key here. The Beam's
 environment points the agent at an endpoint the tenant proxies. Usage is attributed to
 me; there is nothing to leak."
