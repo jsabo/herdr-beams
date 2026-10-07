@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Fake herdr for unit tests. Machine profiles live in $FAKE_STATE/machines.json;
+# every call is appended to $FAKE_LOG, including the --machine prefix.
+set -euo pipefail
+printf 'herdr %s\n' "$*" >> "$FAKE_LOG"
+machines="$FAKE_STATE/machines.json"
+
+if [ "${1:-}" = --machine ]; then shift 2; fi
+
+case "${1:-} ${2:-}" in
+  "machine list")
+    cat "$machines"
+    ;;
+  "machine add")
+    if [ -e "$FAKE_STATE/machine-add-fails" ]; then
+      echo "error: no compatible herdr on the remote host" >&2
+      exit 1
+    fi
+    target="$3"
+    label="$5"
+    jq --arg t "$target" --arg l "$label" \
+      '. + [{id: ("id-" + $l), label: $l, target: $t, session: "default", enabled: true, selected: false}]' \
+      "$machines" > "$machines.tmp" && mv "$machines.tmp" "$machines"
+    printf 'Saved SSH machine id-%s. Remote server is ready.\n' "$label"
+    ;;
+  "machine remove")
+    jq --arg id "$3" 'map(select(.id != $id))' "$machines" > "$machines.tmp" && mv "$machines.tmp" "$machines"
+    printf 'Removed SSH machine %s.\n' "$3"
+    ;;
+  "workspace create")
+    printf '{"id":"cli:workspace:create","result":{"root_pane":{"pane_id":"w9:p1","workspace_id":"w9"},"workspace":{"workspace_id":"w9"},"type":"workspace_created"}}\n'
+    ;;
+  "agent list")
+    # Names in $FAKE_STATE/agent-names (one per line) are already taken.
+    names='[]'
+    if [ -s "$FAKE_STATE/agent-names" ]; then
+      names="$(jq -R . "$FAKE_STATE/agent-names" | jq -s 'map({name: .})')"
+    fi
+    printf '{"id":"cli:agent:list","result":{"agents":%s}}\n' "$names"
+    ;;
+  "agent start")
+    printf '{"id":"cli:agent:start","result":{"agent":{"name":"%s","agent_status":"idle","pane_id":"w9:p1"},"type":"agent_started"}}\n' "$3"
+    ;;
+  "agent prompt")
+    printf '{"id":"cli:agent:prompt","result":{"agent":{"name":"%s","agent_status":"done"},"type":"agent_prompted"}}\n' "$3"
+    ;;
+  "agent wait")
+    printf '{"id":"cli:agent:wait","result":{"agent":{"name":"%s","agent_status":"done"},"type":"agent_waited"}}\n' "$3"
+    ;;
+  "agent read")
+    printf '> curl -s localhost:8080/api/time\n{"utc": "2030-01-01T00:00:00Z"}\n\ndone\n'
+    ;;
+  "plugin pane")
+    printf '{"id":"cli:plugin:pane:open","result":{"pane_id":"w1:p9"},"type":"plugin_pane_opened"}\n'
+    ;;
+  *)
+    echo "fake herdr: unsupported: $*" >&2
+    exit 2
+    ;;
+esac

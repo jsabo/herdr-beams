@@ -1,0 +1,16 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bats, shellcheck and jq
+        run: sudo apt-get update -q && sudo apt-get install -y -q bats shellcheck jq
+      - name: Lint and unit tests (offline, against fake tsh, herdr and ssh)
+        run: tests/run.sh

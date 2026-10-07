@@ -1,0 +1,18 @@
+[
+  {
+    "id": "alpha-one",
+    "uuid": "aaaaaaaa-0000-4000-8000-000000000001",
+    "owner": "someone@example.com",
+    "expires": "2030-01-01T10:00:00.000000000Z",
+    "requested_region": "us-east-1",
+    "region": "us-west-2"
+  },
+  {
+    "id": "beta-two",
+    "uuid": "bbbbbbbb-0000-4000-8000-000000000002",
+    "owner": "someone@example.com",
+    "expires": "2030-01-01T11:00:00.000000000Z",
+    "requested_region": "us-east-1",
+    "region": "us-east-1"
+  }
+]

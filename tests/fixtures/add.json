@@ -1,0 +1,8 @@
+{
+  "id": "new-beam",
+  "uuid": "cccccccc-0000-4000-8000-000000000003",
+  "owner": "someone@example.com",
+  "expires": "2030-01-02T10:00:00.000000000Z",
+  "requested_region": "us-east-1",
+  "region": "us-west-2"
+}

@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Fake tsh for unit tests. State lives in $FAKE_STATE, every call is appended
+# to $FAKE_LOG. Only the `beams` subcommands the plugin uses are implemented.
+set -euo pipefail
+printf 'tsh %s\n' "$*" >> "$FAKE_LOG"
+
+proxy=""
+args=()
+for a in "$@"; do
+  case "$a" in
+    --proxy=*) proxy="${a#--proxy=}" ;;
+    *) args+=("$a") ;;
+  esac
+done
+set -- "${args[@]}"
+[ "${1:-}" = beams ] || { echo "fake tsh: unsupported: $*" >&2; exit 2; }
+shift
+cmd="${1:-}"
+shift || true
+beams="$FAKE_STATE/beams.json"
+
+logged_in() { [ ! -e "$FAKE_STATE/not-logged-in" ]; }
+
+case "$cmd" in
+  ls)
+    logged_in || { echo "ERROR: not logged in" >&2; exit 1; }
+    cat "$beams"
+    ;;
+  add)
+    logged_in || { echo "ERROR: not logged in" >&2; exit 1; }
+    new="$(cat "$FAKE_STATE/add.json")"
+    jq --argjson n "$new" '. + [$n]' "$beams" > "$beams.tmp" && mv "$beams.tmp" "$beams"
+    printf '%s\n' "$new"
+    ;;
+  rm)
+    if ! jq -e --arg id "$1" 'any(.id == $id)' "$beams" >/dev/null; then
+      printf 'ERROR: beam "%s" not found\n' "$1" >&2
+      exit 1
+    fi
+    jq --arg id "$1" 'map(select(.id != $id))' "$beams" > "$beams.tmp" && mv "$beams.tmp" "$beams"
+    printf 'Beam "%s" successfully deleted.\n' "$1"
+    ;;
+  publish)
+    if [ -e "$FAKE_STATE/publish-fails" ]; then
+      echo "ERROR: nothing is listening on port 8080" >&2
+      exit 1
+    fi
+    scheme=https
+    if [ "${1:-}" = --tcp ]; then scheme=tcp; shift; fi
+    printf 'Beam "%s" successfully published.\n\nURL: %s://%s-1234.%s\n' "$1" "$scheme" "$1" "${proxy:-tenant}"
+    ;;
+  *)
+    echo "fake tsh: unsupported: beams $cmd" >&2
+    exit 2
+    ;;
+esac

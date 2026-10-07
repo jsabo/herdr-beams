@@ -1,0 +1,26 @@
+[
+  {
+    "id": "id-alpha-one",
+    "label": "alpha-one",
+    "target": "ssh://beams@aaaaaaaa-0000-4000-8000-000000000001.example.beams.sh",
+    "session": "default",
+    "enabled": true,
+    "selected": false
+  },
+  {
+    "id": "id-gone-beam",
+    "label": "gone-beam",
+    "target": "ssh://beams@dddddddd-0000-4000-8000-000000000004.example.beams.sh",
+    "session": "default",
+    "enabled": true,
+    "selected": false
+  },
+  {
+    "id": "id-workbox",
+    "label": "workbox",
+    "target": "ssh://me@workbox.example.com",
+    "session": "default",
+    "enabled": true,
+    "selected": false
+  }
+]

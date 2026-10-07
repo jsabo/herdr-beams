@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Fake ssh for unit tests. Logs the call, then answers by the remote command.
+# $FAKE_STATE/ssh-fail-count makes that many `true` probes fail first, which
+# is how the wait-for-SSH loop is exercised.
+set -euo pipefail
+printf 'ssh %s\n' "$*" >> "$FAKE_LOG"
+
+host=""
+cmd=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) shift 2 ;;
+    -*) shift ;;
+    *)
+      if [ -z "$host" ]; then host="$1"; shift; else cmd="$*"; break; fi
+      ;;
+  esac
+done
+
+case "$cmd" in
+  true)
+    f="$FAKE_STATE/ssh-fail-count"
+    if [ -s "$f" ] && [ "$(cat "$f")" -gt 0 ]; then
+      echo "$(( $(cat "$f") - 1 ))" > "$f"
+      exit 255
+    fi
+    ;;
+  *"beamctl list"*)
+    cat "$FAKE_STATE/beamctl-list.txt" 2>/dev/null || true
+    ;;
+  *"beamctl logs"*)
+    printf 'following: %s\n' "$cmd"
+    ;;
+  *"herdr\" --version"*|*"herdr --version"*)
+    printf 'herdr 0.0.0-fake\n'
+    ;;
+esac
+exit 0

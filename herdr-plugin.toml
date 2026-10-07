@@ -1,0 +1,163 @@
+# herdr-beams: Teleport Beams from the herdr sidebar.
+#
+#   herdr plugin install jsabo/herdr-beams
+#   printf 'BEAMS_PROXY=<tenant>.beams.sh\n' > "$(herdr plugin config-dir herdr-beams)/env"
+#
+# Local development:
+#   herdr plugin link /path/to/herdr-beams
+#
+# Every pane is a popup so its output is visible and it can ask a question.
+# Every pane also has an action of the same id that opens it, so a keybinding
+# can use type = "plugin_action" with command = "herdr-beams.<id>", and
+# `herdr plugin action invoke herdr-beams.<id>` works from any shell. A pane
+# opened that way skips its y/N question (bin/beam-open.sh sets BEAMS_YES=1);
+# opened from the plugin menu, it asks.
+
+id = "herdr-beams"
+name = "Teleport Beams"
+version = "0.6.1"
+# 0.9.1 added `herdr --machine` forwarding, manifest actions, `plugin action
+# invoke` and `plugin pane open --env`, everything the scripts use (checked
+# against the 0.9.1 binary's help and the v0.9.1 source).
+min_herdr_version = "0.9.1"
+description = "Teleport Beams from the herdr sidebar: ephemeral, isolated runtimes for coding agents, with your identity delegated and no API keys"
+platforms = ["macos", "linux"]
+
+# Drop machine profiles whose Beam has expired, add profiles for Beams that exist
+# without one. Runs once each time the local herdr server starts.
+[[startup]]
+command = ["bash", "bin/beam-reconcile.sh"]
+
+# ---- panes ------------------------------------------------------------------
+
+[[panes]]
+id = "new"
+title = "New Beam"
+description = "Create a Beam, install herdr on it, add it to the sidebar, offer to start an agent"
+placement = "popup"
+width = "80%"
+height = "60%"
+command = ["bash", "bin/beam-new.sh"]
+
+[[panes]]
+id = "agent"
+title = "Start agent in a Beam"
+description = "Pick a Beam (or create one when there is none), open a workspace on it, start a coding agent with a first prompt"
+placement = "popup"
+width = "80%"
+height = "60%"
+command = ["bash", "bin/beam-agent.sh"]
+
+[[panes]]
+id = "status"
+title = "Beam status"
+description = "Every Beam with its region, expiry and SSH address, and whether it is in the sidebar"
+placement = "popup"
+width = "90%"
+height = "60%"
+command = ["bash", "bin/beam-status.sh"]
+
+[[panes]]
+id = "services"
+title = "Beam services (beamctl)"
+description = "List the beam-init services in a Beam and follow one service's logs"
+placement = "popup"
+width = "90%"
+height = "80%"
+command = ["bash", "bin/beam-services.sh"]
+
+[[panes]]
+id = "publish"
+title = "Publish port 8080 of a Beam"
+description = "Expose port 8080 of a Beam as a Teleport application and print its URL"
+placement = "popup"
+width = "80%"
+height = "50%"
+command = ["bash", "bin/beam-publish.sh"]
+
+[[panes]]
+id = "rm"
+title = "Remove a Beam"
+description = "Delete a Beam and its sidebar entry; asks first from the menu, not from a keybinding"
+placement = "popup"
+width = "80%"
+height = "50%"
+command = ["bash", "bin/beam-rm.sh"]
+
+[[panes]]
+id = "rm-all"
+title = "Remove every Beam"
+description = "Delete every Beam on the tenant and their sidebar entries; asks once from the menu, not from a keybinding"
+placement = "popup"
+width = "80%"
+height = "50%"
+command = ["bash", "bin/beam-rm-all.sh"]
+
+# The scripted walkthrough. The title covers both stories (the default app
+# build, or a DEMO_PROMPT task); the script names the one it runs. See demo/README.md.
+[[panes]]
+id = "demo"
+title = "Demo: a Beam, an agent, back to nothing"
+description = "Scripted walkthrough: a Beam, an agent building and publishing an app, teardown"
+placement = "popup"
+width = "90%"
+height = "85%"
+command = ["bash", "demo/demo.sh"]
+
+# ---- actions: one per pane, same id ------------------------------------------
+
+[[actions]]
+id = "new"
+title = "Beams: new Beam"
+description = "Open the New Beam popup"
+contexts = ["global"]
+command = ["bash", "bin/beam-open.sh", "new"]
+
+[[actions]]
+id = "agent"
+title = "Beams: start an agent in a Beam"
+description = "Open the Start agent popup"
+contexts = ["global"]
+command = ["bash", "bin/beam-open.sh", "agent"]
+
+[[actions]]
+id = "status"
+title = "Beams: status"
+description = "Open the Beam status popup"
+contexts = ["global"]
+command = ["bash", "bin/beam-open.sh", "status"]
+
+[[actions]]
+id = "services"
+title = "Beams: services (beamctl)"
+description = "Open the Beam services popup"
+contexts = ["global"]
+command = ["bash", "bin/beam-open.sh", "services"]
+
+[[actions]]
+id = "publish"
+title = "Beams: publish port 8080"
+description = "Open the Publish popup"
+contexts = ["global"]
+command = ["bash", "bin/beam-open.sh", "publish"]
+
+[[actions]]
+id = "rm"
+title = "Beams: remove a Beam"
+description = "Open the Remove a Beam popup"
+contexts = ["global"]
+command = ["bash", "bin/beam-open.sh", "rm"]
+
+[[actions]]
+id = "rm-all"
+title = "Beams: remove every Beam"
+description = "Open the Remove every Beam popup"
+contexts = ["global"]
+command = ["bash", "bin/beam-open.sh", "rm-all"]
+
+[[actions]]
+id = "demo"
+title = "Beams: demo"
+description = "Open the demo popup"
+contexts = ["global"]
+command = ["bash", "bin/beam-open.sh", "demo"]

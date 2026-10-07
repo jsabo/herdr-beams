@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# No-op sleep so the SSH wait loop runs instantly in unit tests.
+exit 0
