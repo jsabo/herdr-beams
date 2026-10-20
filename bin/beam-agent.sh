@@ -12,12 +12,18 @@
 # Once the prompt is sent the pane is done: the agent list in the sidebar shows
 # working, then done, and the agent's own pane is a click away, so this pane
 # never waits on the agent.
-# Usage: beam-agent.sh [beam-id] [workspace-label] [prompt...]
+# Usage: beam-agent.sh [--profile <name> | --pick-profile] [beam-id] [workspace-label] [prompt...]
 cd "$(dirname "$0")/.." || exit 1
 # shellcheck disable=SC1091
 . bin/common.sh
 require_config
 header "Start agent in a Beam"
+profile="${BEAM_AGENT_PROFILE:-}"
+case "${1:-}" in
+  --profile) [ "$#" -ge 2 ] || die "usage: beam-agent.sh --profile <name> [beam-id] [workspace] [prompt]"; profile="$2"; shift 2 ;;
+  --pick-profile) pick_agent_profile; profile="$BEAM_AGENT_PROFILE"; shift ;;
+esac
+load_agent_profile "$profile"
 quick_reconcile
 
 if [ -z "${1:-}" ] && [ "$(beams_json | jq 'length')" -eq 0 ] && interactive; then
@@ -29,7 +35,7 @@ if [ -z "${1:-}" ] && [ "$(beams_json | jq 'length')" -eq 0 ] && interactive; th
     case "$yn" in n|N) die "no Beams; create one with the New Beam pane" ;; esac
   fi
   # beam-new creates the Beam and hands back to this script with its id.
-  exec bash bin/beam-new.sh --agent
+  exec bash bin/beam-new.sh --agent --profile "$profile" "${@:2}"
 fi
 
 id="$(pick_beam "${1:-}")"
@@ -47,6 +53,10 @@ if [ -z "$prompt" ] && interactive; then
   ask "First prompt (empty for none): " prompt
 fi
 
+busy "installing $AGENT_KIND integration on $id"
+install_agent_integration "$(beam_host "$(beam_uuid "$id")")" "$AGENT_KIND" \
+  || die "could not install $AGENT_KIND integration on $id"
+
 # The agent list (for the name) and the workspace are independent, and each
 # is a round trip to the Beam's herdr, so both run at once.
 taken_json="$(mktemp)"
@@ -60,16 +70,15 @@ phase "workspace $label on $id, pane $pane"
 # Agent name: the kind, with a counter when that name is already taken here.
 taken="$(jq -r '.result.agents[].name' "$taken_json")"
 rm -f "$taken_json"
-agent="$BEAM_AGENT_KIND"
+agent="$AGENT_KIND"
 n=2
 while grep -qx "$agent" <<<"$taken"; do
-  agent="$BEAM_AGENT_KIND-$n"
+  agent="$AGENT_KIND-$n"
   n=$((n + 1))
 done
 
-# shellcheck disable=SC2086
-"$HERDR" --machine "$machine" agent start "$agent" --kind "$BEAM_AGENT_KIND" --pane "$pane" -- $BEAM_AGENT_ARGS >/dev/null
-phase "$BEAM_AGENT_KIND is ready as agent $agent"
+"$HERDR" --machine "$machine" agent start "$agent" --kind "$AGENT_KIND" --pane "$pane" -- "${AGENT_ARGS[@]}" >/dev/null
+phase "$AGENT_KIND is ready as agent $agent"
 
 if [ -n "$prompt" ]; then
   "$HERDR" --machine "$machine" agent prompt "$agent" "$prompt" >/dev/null

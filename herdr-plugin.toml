@@ -15,7 +15,7 @@
 
 id = "herdr-beams"
 name = "Teleport Beams"
-version = "0.7.0"
+version = "0.8.0"
 # 0.9.1 added `herdr --machine` forwarding, manifest actions, `plugin action
 # invoke` and `plugin pane open --env`, everything the scripts use (checked
 # against the 0.9.1 binary's help and the v0.9.1 source). `machine rename` is
@@ -162,3 +162,51 @@ title = "Beams: demo"
 description = "Open the demo popup"
 contexts = ["global"]
 command = ["bash", "bin/beam-open.sh", "demo"]
+
+[[panes]]
+id = "profiles"
+title = "Choose agent profile"
+description = "Select a harness, model, effort and approval profile, then launch on a Beam"
+placement = "popup"
+width = "80%"
+height = "60%"
+command = ["bash", "bin/beam-profiles.sh"]
+
+[[actions]]
+id = "profiles"
+title = "Beams: Choose agent profile"
+description = "Select a harness, model, effort and approval profile, then launch on a Beam"
+contexts = ["global"]
+command = ["bash", "bin/beam-open.sh", "profiles"]
+
+[[panes]]
+id = "claude"
+title = "Start Claude Code"
+description = "Launch the configured Claude profile in a new workspace"
+placement = "popup"
+width = "80%"
+height = "60%"
+command = ["bash", "bin/beam-claude.sh"]
+
+[[actions]]
+id = "claude"
+title = "Beams: Start Claude Code"
+description = "Launch the configured Claude profile in a new workspace"
+contexts = ["global"]
+command = ["bash", "bin/beam-open.sh", "claude"]
+
+[[panes]]
+id = "codex"
+title = "Start Codex"
+description = "Launch the configured Codex profile in a new workspace"
+placement = "popup"
+width = "80%"
+height = "60%"
+command = ["bash", "bin/beam-codex.sh"]
+
+[[actions]]
+id = "codex"
+title = "Beams: Start Codex"
+description = "Launch the configured Codex profile in a new workspace"
+contexts = ["global"]
+command = ["bash", "bin/beam-open.sh", "codex"]

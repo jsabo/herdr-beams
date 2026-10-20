@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0 (2026-10-20)
+
+- Add JSON agent profiles with bundled Claude Opus 5, Claude Sonnet 5, GPT-5.6 Sol
+  and GPT-5.6 Terra examples, plus validated plugin-config overrides. Model IDs
+  remain configurable for the tenant inference proxy.
+- Add the `profiles` picker and `claude`/`codex` popup actions for hotkeys.
+  Per-launch harness, model, effort and approval settings use Bash argument arrays;
+  legacy `BEAM_AGENT_KIND`/`BEAM_AGENT_ARGS` launches remain supported.
+- Install the selected harness integration on existing Beams before launch; agents
+  use separate unfocused workspaces and can coexist on one Beam. Preserve profile,
+  workspace and prompt when the agent popup first creates a Beam.
+- Make fake SSH consume provisioning input like the real command, avoiding an
+  intermittent broken-pipe failure in offline tests.
+
 ## 0.7.0 (2026-10-07)
 
 - A Beam's sidebar entry is labelled `beam/<id>` (`beam/neon-panel`) instead of the
