@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.1 (unreleased)
+
+- Collect provisioning results and show Beam recovery instructions when reconciliation fails.
+- Resolve existing machine labels by UUID before agent launch, including renamed profiles.
+- Reuse Herdr installations found on PATH and avoid installing the same integration twice during a new-Beam launch.
+- Check every script with Bash syntax validation and validate machine selectors in offline tests.
+- Simplify the README around installation, first launch, profiles, and everyday actions.
+
 ## 0.8.0 (2026-10-20)
 
 - Add JSON agent profiles with bundled Claude Opus 5, Claude Sonnet 5, GPT-5.6 Sol

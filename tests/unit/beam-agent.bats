@@ -10,11 +10,11 @@ setup() { setup_fakes; }
   [[ "$output" == *"claude is ready as agent claude"* ]]
   [[ "$output" == *"prompt sent"* ]]
   calls_in_order \
-    "herdr --machine beam/alpha-one workspace create --cwd ~ --label api --no-focus" \
-    "herdr --machine beam/alpha-one agent start claude --kind claude --pane w9:p1 -- --dangerously-skip-permissions" \
-    "herdr --machine beam/alpha-one agent prompt claude Read SPEC.md and start."
+    "herdr --machine id-alpha-one workspace create --cwd ~ --label api --no-focus" \
+    "herdr --machine id-alpha-one agent start claude --kind claude --pane w9:p1 -- --dangerously-skip-permissions" \
+    "herdr --machine id-alpha-one agent prompt claude Read SPEC.md and start."
   # the name check runs alongside the workspace create, so only its presence is fixed
-  [ "$(call_count 'herdr --machine beam/alpha-one agent list')" -eq 1 ]
+  [ "$(call_count 'herdr --machine id-alpha-one agent list')" -eq 1 ]
   calls_in_order "agent list" "agent start"
 }
 
@@ -38,20 +38,20 @@ setup() { setup_fakes; }
 @test "agent: the workspace label is used as given" {
   run_script beam-agent.sh alpha-one "My API Server!"
   [ "$status" -eq 0 ]
-  grep -q "^herdr --machine beam/alpha-one workspace create --cwd ~ --label My API Server! --no-focus$" "$FAKE_LOG"
+  grep -q "^herdr --machine id-alpha-one workspace create --cwd ~ --label My API Server! --no-focus$" "$FAKE_LOG"
 }
 
 @test "agent: prints how to watch the agent before the slow parts" {
   run_script beam-agent.sh alpha-one api
   [ "$status" -eq 0 ]
   calls_in_order "workspace create" "agent start"
-  [[ "$output" == *"watch it:   herdr --machine beam/alpha-one agent read claude"* ]]
+  [[ "$output" == *"watch it:   herdr --machine id-alpha-one agent read claude"* ]]
 }
 
 @test "agent: a prompt with several words is passed as one argument" {
   run_script beam-agent.sh alpha-one api fix the failing test
   [ "$status" -eq 0 ]
-  grep -q "^herdr --machine beam/alpha-one agent prompt claude fix the failing test$" "$FAKE_LOG"
+  grep -q "^herdr --machine id-alpha-one agent prompt claude fix the failing test$" "$FAKE_LOG"
 }
 
 @test "agent: without a prompt and without a terminal it only starts the agent" {
@@ -85,7 +85,7 @@ setup() { setup_fakes; }
   select_machine alpha-one
   run_script beam-agent.sh "" api
   [ "$status" -eq 0 ]
-  grep -q "^herdr --machine beam/alpha-one agent list$" "$FAKE_LOG"
+  grep -q "^herdr --machine id-alpha-one agent list$" "$FAKE_LOG"
 }
 
 @test "agent: refuses to guess the Beam without a terminal" {
@@ -119,8 +119,8 @@ setup() { setup_fakes; }
   [[ "$output" != *"Start a claude agent in it now?"* ]]
   [[ "$output" == *"Workspace label [work]:"* ]]
   calls_in_order "beams add --no-console -f json" "herdr machine add" \
-    "herdr --machine beam/new-beam workspace create --cwd ~ --label work --no-focus" \
-    "herdr --machine beam/new-beam agent start claude"
+    "herdr --machine id-new-beam workspace create --cwd ~ --label work --no-focus" \
+    "herdr --machine id-new-beam agent start claude"
 }
 
 @test "agent: from a keybinding with no Beams, creates one and starts the agent without any y/N" {
@@ -155,4 +155,37 @@ setup() { setup_fakes; }
 @test "agent: drops an expired Beam's profile on entry" {
   run_script beam-agent.sh alpha-one api
   calls_in_order "herdr machine remove id-gone-beam" "agent start"
+}
+
+@test "agent: resolves renamed profiles and changed prefixes using the Beam UUID" {
+  jq 'map(if .id == "id-alpha-one" then .label = "custom-name" else . end)' \
+    "$FAKE_STATE/machines.json" > "$FAKE_STATE/renamed.json"
+  mv "$FAKE_STATE/renamed.json" "$FAKE_STATE/machines.json"
+  printf 'BEAM_LABEL_PREFIX=changed/\n' >> "$HERDR_PLUGIN_CONFIG_DIR/env"
+  run_script beam-agent.sh alpha-one review
+  [ "$status" -eq 0 ]
+  grep -q '^herdr --machine id-alpha-one agent start claude' "$FAKE_LOG"
+  ! grep -q -- '--machine changed/alpha-one' "$FAKE_LOG"
+}
+
+@test "agent: missing sidebar profile fails before integration or workspace creation" {
+  run_script beam-agent.sh beta-two review
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'has no sidebar entry'*'beam-reconcile.sh'* ]]
+  ! grep -q '^ssh\|workspace create' "$FAKE_LOG"
+}
+
+@test "agent: existing Beam launches still install the selected integration each time" {
+  run_script beam-agent.sh --profile claude-opus alpha-one
+  [ "$status" -eq 0 ]
+  run_script beam-agent.sh --profile codex-sol alpha-one
+  [ "$status" -eq 0 ]
+  [ "$(call_count 'integration install claude')" -eq 1 ]
+  [ "$(call_count 'integration install codex')" -eq 1 ]
+}
+
+@test "fake herdr: rejects an unknown machine selector" {
+  run "$HERDR_BIN_PATH" --machine missing-machine agent list
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'unknown machine missing-machine'* ]]
 }

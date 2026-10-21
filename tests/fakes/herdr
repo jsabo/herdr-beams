@@ -5,10 +5,15 @@ set -euo pipefail
 printf 'herdr %s\n' "$*" >> "$FAKE_LOG"
 machines="$FAKE_STATE/machines.json"
 
-if [ "${1:-}" = --machine ]; then shift 2; fi
+if [ "${1:-}" = --machine ]; then
+  jq -e --arg selector "$2" 'any(.[]; .id == $selector or .label == $selector)' "$machines" >/dev/null \
+    || { echo "fake herdr: unknown machine $2" >&2; exit 1; }
+  shift 2
+fi
 
 case "${1:-} ${2:-}" in
   "machine list")
+    [ ! -e "$FAKE_STATE/machine-list-fails" ] || exit 1
     cat "$machines"
     ;;
   "machine add")

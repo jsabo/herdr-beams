@@ -4,64 +4,136 @@
 [![herdr 0.9.1+](https://img.shields.io/badge/herdr-0.9.1%2B-8b5cf6)](https://herdr.dev)
 [![license Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-**Your coding agents in a trusted runtime that holds your identity, one keybinding away.**
+**Launch Claude Code and Codex in Teleport Beams, one keybinding away.**
 
-A [herdr](https://herdr.dev) plugin for [Teleport Beams](https://beams.run).
-A Beam is an ephemeral, isolated runtime for an agent: a microVM (a small, fast virtual
-machine) that Teleport provisions with your identity delegated into it, with a
-traceable link back to you, and connects to your infrastructure and inference
-endpoints without secrets. herdr is the terminal workspace manager where your coding
-agents already live: every agent on every machine in one sidebar, showing which is
-working, which is blocked and which is done. This plugin joins the two. One keybinding
-in herdr and a Beam appears in that sidebar as a machine. The next one starts a coding
-agent in it (Claude Code by default), working as you, with no password typed and no
-key copied. No API key exists on your laptop or in the Beam. When the work is done the
-Beam expires on its own: nothing to patch, nothing to clean up, and nothing left
-running that still holds your identity.
+A [herdr](https://herdr.dev) plugin that brings [Teleport Beams](https://beams.run)
+into your terminal sidebar. Create an isolated microVM, start a coding agent, and
+follow its progress alongside your local workspaces.
 
-<!-- ![The New Beam popup finishing: four ticked phases and the Beam's card, with the new machine in herdr's sidebar](assets/new-beam.png) -->
+[Install](#install) · [Quick start](#quick-start) · [Actions](#actions) ·
+[Configuration](#configuration) · [Troubleshooting](docs/troubleshooting.md) ·
+[Changelog](CHANGELOG.md)
+
+## Why Beams + herdr?
+
+- **Your infrastructure, your identity.** Beams delegates your Teleport identity
+  into the runtime, with access governed by Teleport roles and attributed in its
+  audit log.
+- **Inference without managing API keys.** Agents use the tenant's inference
+  proxy and model aliases.
+- **Every agent in one sidebar.** herdr shows agent activity and completion across
+  your laptop and Beams; open an agent's pane whenever you need it.
+- **Choose the harness per task.** Launch Claude Code or Codex with named model,
+  effort, approval, and sandbox profiles.
+- **Build, serve, and share.** Keep a development service running with `beamctl`
+  and publish port 8080 through Teleport.
+- **Automatic expiry.** Beams expire after 24 hours, or you can delete them sooner.
+  Save or push work you want to keep before teardown.
+
+See [how it works](docs/architecture.md) for identity, runtime, and security details.
 
 ## Requirements
 
-- herdr 0.9.1 or newer on the laptop (`brew install herdr`)
-- bash 4 or newer on the laptop (macOS ships 3.2; `brew install bash` puts a current one
-  where herdr finds it)
-- `tsh` 18.11 or newer, logged in to your Beams tenant:
-  `TELEPORT_CLUSTER= tsh login --proxy=<tenant>.beams.sh`
-- `jq`, the command-line JSON processor
-- The `tsh config` block for the tenant in your SSH config, so OpenSSH
-  can reach a Beam:
+On the machine running the plugin:
 
-  ```sh
-  tsh --proxy=<tenant>.beams.sh config > ~/.ssh/teleport-beams.config
-  printf 'Include ~/.ssh/teleport-beams.config\n' >> ~/.ssh/config
-  ```
+- herdr 0.9.1 or newer ([installation](https://herdr.dev)).
+- Bash 4+, `jq`, and OpenSSH. On macOS: `brew install bash jq`; the system Bash 3.2
+  is too old. Make sure herdr can find the newer `bash` on its PATH.
+- `tsh` 18.11+ and access to a Teleport Beams tenant.
+- The selected agent CLI available in the Beam image.
+
+Log in and configure SSH once, replacing `<tenant>` with your tenant:
+
+```sh
+TELEPORT_CLUSTER= tsh login --proxy=<tenant>.beams.sh
+tsh --proxy=<tenant>.beams.sh config > ~/.ssh/teleport-beams.config
+```
+
+Add this line to `~/.ssh/config` if it is not already present:
+
+```sshconfig
+Include ~/.ssh/teleport-beams.config
+```
 
 ## Install
 
 ```sh
 herdr plugin install jsabo/herdr-beams
-printf 'BEAMS_PROXY=<tenant>.beams.sh\n' > "$(herdr plugin config-dir herdr-beams)/env"
-herdr plugin action invoke herdr-beams.new
 ```
 
-The last line opens the New Beam popup. Eighteen seconds later the Beam is in your
-sidebar. To update, run the install command again.
+Create the plugin's `env` file, or edit it if you already have settings:
 
-Keybindings are yours to choose. In `~/.config/herdr/config.toml`:
+```sh
+beams_config_dir="$(herdr plugin config-dir herdr-beams)"
+mkdir -p "$beams_config_dir"
+${EDITOR:-vi} "$beams_config_dir/env"
+```
+
+```sh
+BEAMS_PROXY=<tenant>.beams.sh
+```
+
+Re-run the install command to update. To pin a release, use
+`herdr plugin install jsabo/herdr-beams --ref <release-tag>` with a tag from
+[Releases](https://github.com/jsabo/herdr-beams/releases).
+
+## Quick start
+
+1. **Create a Beam:** `herdr plugin action invoke herdr-beams.new`. The popup
+   installs herdr on the Beam and adds `beam/<id>` to the sidebar.
+2. **Launch an agent:** `herdr plugin action invoke herdr-beams.profiles`. Choose
+   a profile, Beam, workspace label, and first prompt. Match profile model IDs to
+   your tenant's aliases first; see [Agent profiles](#agent-profiles).
+3. **Follow the work:** watch the sidebar, then open the agent's pane to read its
+   output or answer approval prompts.
+4. **Clean up:** `herdr plugin action invoke herdr-beams.rm`. Save your work first;
+   deleting a Beam removes its agents and files.
+
+For the default Claude launch, use `herdr plugin action invoke herdr-beams.agent`.
+When no Beams exist, this action offers to create one and continues into launch.
+
+**Confirmation behavior:** actions invoked through keybindings or `action invoke`
+create and delete without a y/N question. Opening a pane from the plugin menu asks
+first. Set `BEAMS_YES=0` in `env` to restore confirmations for interactive actions.
+Workspace and prompt questions still appear. Noninteractive scripts do not ask.
+
+## Actions
+
+Run any action with `herdr plugin action invoke herdr-beams.<action>`.
+
+| Action | What it does |
+| --- | --- |
+| `new` | Create a Beam, install herdr, and offer to launch an agent. |
+| `agent` | Launch the default agent in a new unfocused workspace; create a Beam if needed. |
+| `profiles` | Pick a harness, model, effort, and approval profile before launch. |
+| `claude` / `codex` | Launch the configured harness profile directly. |
+| `status` | Show sidebar registration, region, expiry, and SSH address. |
+| `services` | List `beamctl` services and optionally follow a service's logs. |
+| `publish` | Publish port 8080 through Teleport over HTTPS or TCP. |
+| `rm` | Delete one Beam and its sidebar entry. |
+| `rm-all` | Delete every Beam on the configured tenant and their sidebar entries. |
+| `demo` | Run the guided build-and-publish walkthrough. |
+
+Expired Beam entries are removed from the sidebar when a popup opens. Failures stay
+visible until a key is pressed. The sidebar shows reachability and agent state;
+launch popups finish without waiting for the agent.
+
+## Keybindings
+
+Add bindings to `~/.config/herdr/config.toml`, then run `herdr server reload-config`:
 
 ```toml
 [[keys.command]]
 key = "prefix+shift+b"
 type = "plugin_action"
-command = "herdr-beams.new"      # <plugin id>.<action id>, not the plugin's name
+command = "herdr-beams.new"
 description = "new Beam"
 
 [[keys.command]]
 key = "prefix+a"
 type = "plugin_action"
-command = "herdr-beams.agent"
-description = "start an agent in a Beam"
+command = "herdr-beams.profiles"
+description = "launch an agent in a Beam"
 
 [[keys.command]]
 key = "prefix+s"
@@ -74,169 +146,17 @@ key = "prefix+d"
 type = "plugin_action"
 command = "herdr-beams.rm"
 description = "remove a Beam"
-
-[[keys.command]]
-key = "prefix+shift+q"
-type = "plugin_action"
-command = "herdr-beams.rm-all"
-description = "remove every Beam"
 ```
 
-Then `herdr server reload-config`. `prefix` is herdr's prefix key, `ctrl+b` by
-default: press it, release, then press the letter. With these, `prefix+a` is the
-whole way in (with no Beam it creates one, then starts the agent in it) and
-`prefix+shift+q` is the whole way out: every Beam deleted, every sidebar entry gone,
-and with them the agents, which run on the Beams. Then `prefix+q` detaches from herdr.
+`prefix` defaults to `ctrl+b`: press and release it, then press the next key.
+Use `herdr-beams.claude` or `herdr-beams.codex` for direct launch bindings.
 
-Press the chords with Local selected in the sidebar. herdr runs a plugin action on the
-selected machine's herdr server, and the one on a Beam has no plugins, so with a Beam
-selected the chord does nothing. `herdr plugin action invoke herdr-beams.<id>` from a
-shell always goes to the local server.
+**Select Local in the sidebar before using a plugin keybinding.** herdr sends the
+binding to the selected machine's server; Beams do not have the local plugin.
+Running `herdr plugin action invoke ...` from a local shell reaches the local server.
 
-A popup opened by a keybinding, or by `herdr plugin action invoke`, does not ask
-"are you sure": pressing the chord was the decision. The same popup opened from
-herdr's plugin menu asks first. Questions that need an answer from you (the workspace
-label, the first prompt) are asked either way, and Enter takes the default. To get
-the questions back on keybindings too, add `BEAMS_YES=0` to the settings file (see
-[Settings](#settings)); delete the line to turn them off again. Each popup reads the
-file when it opens, so there is nothing to reload.
+## Configuration
 
-The letters stay clear of herdr's own chords: `prefix+b` toggles the sidebar, so a new
-Beam is `prefix+shift+b`, and `prefix+shift+d` closes the workspace, so remove-all
-sits next to detach as `prefix+shift+q`. Prefix chords are what the other public
-herdr plugins use, and nothing outside herdr can take one, because the terminal and
-the window manager only ever see the prefix. If you prefer one-keystroke bindings,
-herdr's [keyboard guide](https://herdr.dev/docs/keyboard) recommends the `ctrl+alt`
-family for direct chords and lists the ones desktops already own.
-
-## What you get
-
-Every entry is a popup, so you can read what it did, and every entry has an action of
-the same id, so `herdr plugin action invoke herdr-beams.<id>` opens it from any shell.
-
-| Entry | What it does |
-|---|---|
-| `new` | Creates a Beam, installs herdr on it, adds it to the sidebar as `beam/<id>`, and offers to start an agent. Prints a tick and a timestamp per phase. |
-| `agent` | Picks a Beam (or creates one when there is none), opens a workspace on it, starts the agent (`BEAM_AGENT_KIND`, Claude Code by default) in the workspace's root pane and sends a first prompt. The agent list in the sidebar shows it working, then done. |
-| `profiles` | Picks a launch profile (harness, model, effort and approval), then a Beam and workspace. |
-| `claude` / `codex` | Launches the configured harness profile directly, suitable for hotkeys. |
-| `status` | One card per Beam: whether it is in the sidebar, region, expiry, SSH address. Whether herdr can reach it is the dot on its sidebar entry. |
-| `services` | `beamctl list` on a Beam, then follow one service's logs. |
-| `publish` | Exposes port 8080 of a Beam as a Teleport application and prints its URL. |
-| `rm` | Deletes a Beam and its sidebar entry. Asks first from the menu, not from a keybinding. |
-| `rm-all` | Lists every Beam on the tenant, then deletes them all with their sidebar entries. Asks once from the menu, not from a keybinding. |
-| `demo` | The scripted walkthrough, with a pause before each step (see [Demo](#demo)). |
-
-Every popup first drops sidebar entries whose Beam has expired. A popup that fails
-stays open with the reason until you press a key. No popup waits on an agent or
-re-checks what the sidebar already shows: the agent list is where an agent's state
-lives, and the dot on a machine entry is whether herdr can reach it.
-
-A popup closes when its script ends: any key at `press any key to close` or at a y/N
-question, Enter at a question that wants a value (it takes the default), and Ctrl+C
-anywhere, which closes it at once. The one time Ctrl+C leaves the popup open is when
-`new` has already created the Beam: the popup then says the Beam exists without a
-sidebar entry and waits for a key, so you know to remove it or run `new` again. To
-copy a command out of a popup, hold Shift while you drag over it, then copy as usual:
-herdr owns the mouse, and Shift hands the drag back to the terminal.
-
-<!-- ![The Beam status popup: one card per Beam with its sidebar entry, region, expiry and SSH address](assets/status.png) -->
-
-## How it works
-
-Each point is a mechanism you can check, not a claim. The Beams behaviour is in the
-[Teleport Beams](https://beams.run) pages; the timings are in
-[docs/measured.md](docs/measured.md).
-
-- **The agent acts as you, without your credentials.** A Beam carries a delegated
-  identity: a certificate issued for the Beam on your behalf, with a traceable link
-  back to you. `tsh` inside the Beam is already logged in, and every SSH or database
-  action it takes is attributed in the audit log to you and to the Beam's own workload
-  identity. The private key never leaves Teleport, and the Beam cannot use the identity
-  to mint new certificates for anything else. In the beta the delegated identity holds
-  your role set; the delegation model is built for the next step, where a Beam gets a
-  narrower profile for the task and an agent requests more access when it needs it,
-  with a person or a reviewing model in the loop.
-- **No API keys exist.** The Beam's environment points `ANTHROPIC_BASE_URL` and
-  `OPENAI_BASE_URL` at inference endpoints the tenant proxies; the "key" is a
-  placeholder string. Nothing to rotate, nothing to leak, usage attributed per user.
-- **Services outlive sessions.** `beam-init` is the Beam's init process and `beamctl`
-  its service manager. A dev server started with `beamctl start` keeps running after
-  every shell closes, and an agent can start one itself.
-- **Publish without a load balancer.** `tsh beams publish` turns port 8080 into a
-  Teleport application served over HTTPS: an
-  address only your login can open, with every request in the audit log. Port 8080 is
-  the only port the beta publishes.
-- **Expiry is the cleanup.** Beams live 24 hours. Nothing accumulates.
-
-herdr adds the part Beams do not have: one sidebar for your laptop and every Beam, an
-agent state (`working`, `blocked`, `done`) you can see and get notified about, and
-`herdr --machine beam/<id>`, which forwards any herdr command to the Beam's own herdr
-server so a shell, a script or another agent can drive what runs there. Beams is the
-runtime you can trust with your identity; herdr is the place you can see and drive
-every agent. Neither does the other's job.
-
-| | Teleport Beams | herdr |
-|---|---|---|
-| Sandbox, egress, 24 h lifetime | yes | no |
-| Identity for `tsh`: SSH nodes, databases over VNet | delegated from your login | no |
-| Inference endpoint and keys | proxied by the tenant | no |
-| Audit and session recording | yes | no |
-| Keep a process alive after SSH drops | `beamctl` (services) | panes owned by a background server |
-| Agent state in a sidebar, notifications | no | yes |
-| Several machines in one window | no | yes |
-| Scriptable control of agents | no | socket API and CLI |
-
-VNet is Teleport's virtual network: inside the Beam a database gets a local hostname,
-and a plain `psql` or `mysql` client connects through it with the Beam's identity.
-
-The only overlap is "keep an interactive agent alive and get back to it". Use herdr
-for that. Use `beamctl` for processes that are not agents: the dev server behind
-`tsh beams publish`, a database, a `claude -p` loop.
-
-Inside a Beam, herdr runs as a plain user process reparented to `beam-init`. It
-survives the SSH session that started it, and its panes inherit the Beam's environment,
-so the inference endpoints and the Teleport identity variables are present in every
-agent without configuration.
-
-## What this plugin runs on your machine
-
-A herdr plugin is ordinary code that runs as your user. This one is a few short bash
-scripts in `bin/`, and they do exactly this:
-
-- **Commands it issues**: `tsh --proxy=<BEAMS_PROXY> beams ls|add|rm|publish`,
-  `ssh beams@<uuid>.<tenant>` (through your SSH config, one shared connection per
-  Beam), `herdr machine add|rename|remove|list`, and `herdr --machine beam/<id> …` for
-  workspaces and agents on the Beam.
-- **On the Beam**: `curl -fsSL https://herdr.dev/install.sh | sh` if herdr is
-  missing, `herdr integration install <selected harness>`, and a section
-  `## Inside a Beam (added by herdr-beams)` appended to the Beam's `~/.claude/CLAUDE.md`
-  and `~/AGENTS.md`. The text is `beam_notes` in `bin/common.sh`: the facts an agent
-  otherwise spends its first minutes rediscovering (which `tsh` commands the delegated
-  identity cannot run, which database engines have a VNet path, which clients are not
-  installed). The selected integration is also installed idempotently before each
-  agent launch, including on an existing Beam.
-- **Where it writes on the laptop**: your settings in
-  `$(herdr plugin config-dir herdr-beams)/env`, a cache of the Beam list in herdr's
-  plugin state directory, machine entries in herdr's own machine list, and optional
-  profile overrides in the plugin config directory. It stores no credentials;
-  `tsh` holds your login.
-- **Legacy agents run with permission prompts off.** `BEAM_AGENT_ARGS` defaults to
-  `--dangerously-skip-permissions`, because the Beam is the boundary: the sandbox,
-  Teleport's role-based access control (RBAC) and the audit log are the guardrails,
-  and there is no one at the keyboard to answer prompts. Set `BEAM_AGENT_ARGS=""` to
-  keep the prompts. Profiles select approval and sandbox settings per launch.
-
-herdr does not review or sandbox plugin code, and listings on herdr.dev are not
-reviewed either; a plugin runs as your user with your environment, like any editor or
-shell extension. Its own guidance is to read the manifest and the scripts before you
-install, and this plugin is built to make that short: `herdr-plugin.toml` names every
-command it can run, each is a bash script in `bin/` that does one thing, and
-`herdr plugin install` shows you the startup command (`bin/beam-reconcile.sh`) before
-it registers anything. To run the revision you read rather than whatever `main` holds
-later, pin a release tag: `herdr plugin install jsabo/herdr-beams --ref v0.7.0`.
-
-## Settings
 
 `$(herdr plugin config-dir herdr-beams)/env` is sourced by every script:
 
@@ -248,39 +168,32 @@ later, pin a release tag: `herdr plugin install jsabo/herdr-beams --ref v0.7.0`.
 | `BEAM_AGENT_ARGS` | `--dangerously-skip-permissions` | arguments passed to the agent binary; quote more than one, for example `BEAM_AGENT_ARGS="--dangerously-skip-permissions --model opus"` to override the model the Beam image pins |
 | `BEAMS_YES` | unset | the actions set it to `1` so a keybinding deletes or creates without a y/N question; `BEAMS_YES=0` here overrides that and every popup asks again |
 
-## Agent profiles
+Settings are read whenever a popup opens; no reload is needed. Use
+`BEAM_LABEL_PREFIX` (default `beam/`) to customize sidebar labels. Launches resolve
+existing profiles by the Beam UUID, so manual renames and prefix changes do not
+prevent an agent from starting.
 
-Use `herdr plugin action invoke herdr-beams.profiles` to choose a profile in a
-popup. The existing `agent` entry keeps its legacy behavior unless
-`BEAM_AGENT_PROFILE` is set. For a direct hotkey, use `command = "herdr-beams.claude"`
-or `command = "herdr-beams.codex"` with `type = "plugin_action"`. These open the
-usual Beam/workspace/prompt popup without a profile question.
+### Agent profiles
 
-Bundled examples in [profiles/defaults.json](profiles/defaults.json):
+Choose a profile interactively:
 
-| Profile | Harness | Example model ID | Effort | Approval | Sandbox |
-|---|---|---|---|---|---|
+```sh
+herdr plugin action invoke herdr-beams.profiles
+```
+
+| Bundled profile | Harness | Example model | Effort | Approval | Sandbox |
+| --- | --- | --- | --- | --- | --- |
 | `claude-opus` | Claude Code | `claude-opus-5` | high | bypass | harness default |
 | `claude-sonnet` | Claude Code | `claude-sonnet-5` | medium | bypass | harness default |
 | `codex-sol` | Codex | `gpt-5.6-sol` | high | never | workspace-write |
 | `codex-terra` | Codex | `gpt-5.6-terra` | medium | on-request | workspace-write |
 
-These are examples for Claude Opus 5, Claude Sonnet 5, GPT-5.6 Sol and GPT-5.6 Terra.
-Model IDs must match your Teleport inference proxy's aliases; their availability is
-not guaranteed. The installed harness must support the selected model and flags.
-
-Create `profiles.json` under `$(herdr plugin config-dir herdr-beams)` to replace a
-bundled record or add a named profile. Records replace whole profiles; include every
-required field. Installation and upgrades never rewrite this file. For example:
+These model IDs are examples. Replace them with aliases supported by your tenant's
+inference proxy and installed harness. Add or replace profiles in `profiles.json`
+in the same configuration directory as `env`:
 
 ```json
 {
-  "claude-opus": {
-    "harness": "claude",
-    "model": "your-proxy-opus-alias",
-    "effort": "high",
-    "approval": "default"
-  },
   "review": {
     "harness": "codex",
     "model": "your-proxy-codex-alias",
@@ -291,174 +204,95 @@ required field. Installation and upgrades never rewrite this file. For example:
 }
 ```
 
-Profile names use lowercase letters, digits and hyphens, starting with a letter.
-Each record requires `harness`, a nonempty `model`, `effort`, and `approval`.
-Codex also requires `sandbox`; Claude profiles must omit it. Unknown fields,
-unsupported values, malformed JSON and control characters in model IDs fail before
-any Beam or workspace is created.
-
-- Claude effort: `low`, `medium`, `high`, `max`. Approval: `default` (leave the
-  harness's permission configuration intact) or `bypass`
-  (`--dangerously-skip-permissions`).
-- Codex effort: `minimal`, `low`, `medium`, `high`, `xhigh`, passed through
-  `-c model_reasoning_effort="..."`. Approval: `default` (omit the flag),
-  `on-request`, `untrusted`, or `never`, passed through `--ask-for-approval`.
-  Sandbox: `read-only`, `workspace-write`, or `danger-full-access`, passed through
-  `--sandbox`. `never` suppresses approval requests but retains the selected sandbox.
-
-Set defaults in the plugin's `env` file:
+Set defaults in `env`:
 
 ```sh
-BEAM_AGENT_PROFILE=review               # optional default for agent/new
-BEAM_CLAUDE_PROFILE=claude-sonnet        # default: claude-opus
-BEAM_CODEX_PROFILE=codex-sol             # default: codex-sol
+BEAM_AGENT_PROFILE=review
+BEAM_CLAUDE_PROFILE=claude-sonnet
+BEAM_CODEX_PROFILE=codex-sol
 ```
 
-An explicit `--profile` or picker selection wins over `BEAM_AGENT_PROFILE` and
-replaces legacy harness arguments for that launch. Without a profile,
-`BEAM_AGENT_KIND` and `BEAM_AGENT_ARGS` retain their defaults and whitespace-separated
-argument behavior (shell quotes inside the string are not parsed). Profile model
-strings are passed as single arguments, with no shell evaluation or glob expansion.
+Explicit selections override the default profile. With no profile, `agent` keeps
+its legacy settings: Claude Code with `--dangerously-skip-permissions` by default.
+Set `BEAM_AGENT_ARGS=""` to keep its permission prompts. Profile launches use their
+own approval settings; Codex `never` retains the selected sandbox.
+
+See the [profile reference](docs/profiles.md) for overrides, supported values,
+validation, and command-line examples.
+
+## Scripting and demos
+
+From a checkout, launch an agent without interactive questions:
 
 ```sh
-bash bin/beam-agent.sh --profile claude-opus <beam> implementation "Build the API"
-bash bin/beam-agent.sh --profile codex-sol <beam> review "Review the API"
+bash bin/beam-agent.sh --profile review <beam-id> review "Review the API" </dev/null
 ```
 
-Each launch creates a separate unfocused Herdr workspace, chooses an unused agent
-name (`claude`, `codex`, `codex-2`, ...), and installs that harness's integration
-before starting it. Claude Code and Codex can remain active on the same Beam.
-The plugin does not coordinate agents, create Git worktrees, or isolate their files;
-use distinct working directories or agree on file ownership yourself. Simultaneous
-launch requests for the same harness are not locked and can race for an agent name.
-Selected profiles and supplied workspace/prompt arguments survive the popup flow
-that first creates a Beam. Profile approval prompts may require opening the agent's
-pane; the launch popup does not wait for the agent. Harness binaries come from the
-Beam image and are not installed by the profile loader.
-
-## Scripting and agents
-
-Everything a popup does is also a plain command. The whole surface is herdr's
-`--machine` prefix:
+Drive a running agent with herdr:
 
 ```sh
-herdr --machine beam/neon-panel workspace create --cwd '~' --label api --no-focus
-herdr --machine beam/neon-panel agent start claude --kind claude --pane w2:p1 -- --dangerously-skip-permissions
-herdr --machine beam/neon-panel agent prompt claude "Read SPEC.md and start." --wait --timeout 600000
+herdr --machine beam/<id> agent list
+herdr --machine beam/<id> agent prompt codex "Read SPEC.md and start." --wait --timeout 600000
 ```
 
-The scripts in `bin/` take their arguments on the command line and never ask a question
-when there is no terminal, so an agent on your laptop can call them:
-`bash bin/beam-agent.sh <beam> <workspace> "<prompt>" </dev/null`. A skill that
-teaches a coding agent this flow is in `skills/herdr-beams/`:
+Use the actual sidebar label if you renamed it. A coding-agent skill is available:
 `npx skills add jsabo/herdr-beams --skill herdr-beams -g`.
 
-<!-- ![herdr's sidebar with a Beam machine and its agent marked done](assets/agent-done.png) -->
+For a guided demo, run `herdr plugin action invoke herdr-beams.demo`. See the
+[demo guide](demo/README.md) for the app-building story, custom tasks, and options.
+Recorded timings and versions are in [measurements](docs/measured.md).
 
-## Demo
+## Limitations and security
 
-`demo/demo.sh` tells one of two stories, with a pause before each step and a timer
-after it: an agent builds an app in a Beam, starts it as a service, and you publish
-it (seven steps, about 52 s unattended); or, with `DEMO_PROMPT` set, an agent runs
-your task as you (five steps). Run it as a popup so the audience watches the sidebar
-change behind it:
-
-```sh
-herdr plugin pane open --plugin herdr-beams --entrypoint demo
-```
-
-The popup inherits herdr's environment, not your shell's, so demo variables go on the
-command line (`--env DEMO_AUTO=1`). The talk tracks, the variables and a pre-flight
-checklist are in [demo/README.md](demo/README.md).
-
-## Limitations
-
-- Publishing is port 8080 only and one app per Beam.
-- A Beam lives 24 hours. The plugin treats its own list as a cache and reconciles
-  against `tsh beams ls` before acting.
-- Inside a Beam, VNet gives a path to postgres, mysql, sql-server and cockroachdb.
-  Other engines resolve to the public proxy and clients hang; the seeded notes tell the
-  agent not to probe them.
-- The delegated identity cannot reissue certificates, so `tsh db connect`,
-  `tsh proxy` and `tsh kube login` fail inside a Beam by design.
-- `tsh beams exec` re-splits its command on the remote side, so pipes and quotes do
-  not survive it. The plugin uses `ssh` for anything with a pipe.
-
-## Uninstall
-
-```sh
-herdr plugin uninstall herdr-beams
-rm -r "$(herdr plugin config-dir herdr-beams)"
-```
-
-Run the `rm-all` popup first if you want the Beams gone too. Otherwise they expire on
-their own within 24 hours, and `tsh beams rm <id>` removes one sooner. Sidebar entries
-for Beams are ordinary herdr machines; remove any left with `herdr machine remove`.
+- Beams expire after 24 hours. Publishing supports port 8080 and one app per Beam.
+- Separate agent workspaces share files. The plugin does not create Git worktrees
+  or coordinate concurrent edits; use distinct directories or agree on ownership.
+- Concurrent launches of the same harness can race for an agent name.
+- Approval prompts may need attention in the agent pane. The plugin installs
+  harness integrations, not agent binaries.
+- Delegated identities cannot reissue certificates. Use plain database clients
+  over VNet for supported engines; `tsh db connect` and `tsh kube login` are not
+  available inside a Beam. See [architecture](docs/architecture.md).
+- The plugin runs as your local user and installs herdr remotely when needed.
+  Review [SECURITY.md](SECURITY.md) and the scripts before installing.
 
 ## Troubleshooting
 
-- **The popup closed before you could read it.** A failing popup stays open with the
-  reason and `beams: failed (exit N)` until a key is pressed. If you still see nothing,
-  the popup never started: look for `plugin.pane.open` in
-  `~/.config/herdr/herdr-server.log`.
-- **A keybinding does nothing.** A `plugin_action` binding needs the plugin id
-  (`herdr-beams.new`), not its name, and `herdr server reload-config` after editing the
-  file. A `type = "shell"` binding runs through `/bin/sh -lc`, which reads
-  `~/.profile`, not `~/.zshrc`; if `herdr` is not on that PATH, write its full path.
-- **A keybinding does nothing while a Beam is selected in the sidebar.** herdr sends
-  a plugin action to the selected machine's server, and the herdr on a Beam has no
-  plugins (`herdr --machine beam/<id> plugin list` says so). Select Local, then press the
-  chord, or run `herdr plugin action invoke herdr-beams.<id>` from a shell.
-- **You cannot select text in a popup.** herdr captures the mouse for its own
-  selection. Hold Shift while you drag; the terminal then selects natively and Cmd+C
-  (or your terminal's copy key) takes it.
-- **`cannot list Beams on <tenant>`.** tsh's own error is printed above it. The plugin
-  only uses the tenant in `BEAMS_PROXY`; if you are not logged in:
-  `TELEPORT_CLUSTER= tsh login --proxy=<tenant>.beams.sh` (the empty
-  `TELEPORT_CLUSTER` matters when that variable is set in your shell).
-- **`no Beam named <id>`.** The id is checked against `tsh beams ls` before anything
-  runs. Beams have a short id (`neon-panel`) and a UUID; the popups take the short
-  id.
-- **`Beam <id> exists without a sidebar entry`.** The `new` popup failed after the
-  Beam was created (SSH never came up, or the install failed). Remove it with the `rm`
-  popup or `bash bin/beam-rm.sh <id>`, or fix the cause and run `new` again; the
-  startup hook adds a sidebar entry for any Beam that already has herdr on it.
-- **`plugin requires Herdr 0.9.1 or newer`** when linking or installing. The running
-  herdr server is older than the binary. `herdr server stop` (this ends its panes),
-  then start herdr again.
-- **`ssh: … target host <id> is offline or does not exist`.** A Beam's SSH hostname
-  is its UUID, not its short id. The plugin always uses the UUID; if you connect by
-  hand, take it from `tsh beams ls -f json`.
-- **`machine add` fails without a terminal.** herdr is not on the Beam yet. The `new`
-  popup installs it; for a Beam created elsewhere, run
-  `ssh beams@<uuid>.<tenant> 'curl -fsSL https://herdr.dev/install.sh | sh'` first.
-- **`herdr: server shut down: server is shutting down`** when launching herdr. The
-  client attached while an earlier server was still stopping. Run `herdr` again.
-- **An `Action interrupted` toast** in the top right is herdr's own message for a
-  server call that was cancelled, usually by Esc or a closed popup. The Beam and its
-  agents are unaffected.
-- **A direct chord does nothing, or resizes the window.** Most macOS terminals
-  compose plain `alt` chords into a character before herdr sees them, and window
-  managers such as Magnet take some `ctrl+alt` chords system-wide. The `prefix+`
-  bindings above avoid both: only herdr sees the key after the prefix.
+- **Keybinding does nothing:** select Local, check the plugin action ID, and reload
+  herdr's config. Try the equivalent `herdr plugin action invoke` command.
+- **Cannot list Beams:** check `BEAMS_PROXY` and log in with
+  `TELEPORT_CLUSTER= tsh login --proxy=<tenant>.beams.sh`.
+- **Beam exists without a sidebar entry:** the popup gives its ID and removal
+  command. Fix the reported cause; if herdr is installed, run
+  `bash bin/beam-reconcile.sh` from the checkout to register it, or remove the Beam.
+- **Cannot copy popup text:** hold Shift while dragging to use terminal selection.
+
+More errors and recovery steps: [Troubleshooting guide](docs/troubleshooting.md).
+
+## Uninstall
+
+Delete any Beams you no longer need before uninstalling:
+
+```sh
+herdr plugin action invoke herdr-beams.rm-all
+herdr plugin uninstall herdr-beams
+```
+
+Remaining Beams expire on their own. Remove leftover sidebar entries with
+`herdr machine remove <profile-id>`. To delete saved settings, get their path with
+`herdr plugin config-dir herdr-beams` and remove that directory.
 
 ## Development
 
 ```sh
-brew install bats-core shellcheck
-tests/run.sh                              # lint + unit tests, offline, a few seconds
-HERDR_BEAMS_INTEGRATION=1 tests/run.sh    # also creates and deletes one real Beam
-herdr plugin link "$(pwd)"
-herdr plugin action invoke herdr-beams.status
-herdr plugin log list --plugin herdr-beams
+brew install bats-core shellcheck jq
+tests/run.sh
+HERDR_BEAMS_INTEGRATION=1 tests/run.sh   # creates and deletes one real Beam
 ```
 
-The unit tests run every script, and the demo, against fake `tsh`, `herdr` and `ssh`
-commands and assert on the exact command lines issued, including every question a
-popup can ask. Conventions are in [AGENTS.md](AGENTS.md), how to contribute in
-[CONTRIBUTING.md](CONTRIBUTING.md), what the plugin touches in
-[SECURITY.md](SECURITY.md).
+See [Contributing](CONTRIBUTING.md) for local linking and testing, and
+[AGENTS.md](AGENTS.md) for repository conventions.
 
 ## License
 
-Apache-2.0, the same as herdr.
+[Apache-2.0](LICENSE), the same as herdr.

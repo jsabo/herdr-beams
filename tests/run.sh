@@ -5,7 +5,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
 shellcheck bin/*.sh demo/*.sh tests/fakes/* tests/run.sh
-bash -n bin/*.sh demo/*.sh
+for script in bin/*.sh demo/*.sh tests/fakes/* tests/run.sh; do
+  bash -n "$script"
+done
 bats --print-output-on-failure tests/unit
 
 if [ "${HERDR_BEAMS_INTEGRATION:-}" = 1 ]; then

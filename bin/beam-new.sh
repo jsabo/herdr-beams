@@ -28,10 +28,28 @@ busy "creating a Beam on $BEAMS_PROXY"
 add_json="$(mktemp)"
 tshb add --no-console -f json > "$add_json" &
 add_pid=$!
+# Reconciliation can fail while provisioning continues. Always collect the result
+# before exiting so a successfully created Beam has recovery instructions.
+cleanup_new() {
+  local rc="$?" leftover
+  trap - EXIT
+  if [ -n "$add_pid" ]; then
+    wait "$add_pid" || true
+    leftover="$(jq -er '.id | select(type == "string" and length > 0)' "$add_json" 2>/dev/null)" || leftover=""
+    if [ -n "$leftover" ]; then
+      FAIL_HINT="Beam $leftover exists without a sidebar entry; remove it with the rm pane or: bash bin/beam-rm.sh $leftover"
+    fi
+  fi
+  rm -f "$add_json"
+  finish "$rc"
+  exit "$rc"
+}
+trap cleanup_new EXIT
 quick_reconcile
 wait "$add_pid" \
   || die "tsh beams add failed on $BEAMS_PROXY; if you are not logged in: TELEPORT_CLUSTER= tsh login --proxy=$BEAMS_PROXY"
 beam="$(cat "$add_json")"
+add_pid=""
 rm -f "$add_json"
 id="$(jq -r .id <<<"$beam")"
 uuid="$(jq -r .uuid <<<"$beam")"
@@ -70,7 +88,7 @@ show_cmd "herdr --machine $machine pane list"
 
 if [ "$then_agent" = 1 ]; then
   printf '\n'
-  exec bash bin/beam-agent.sh --profile "$profile" "$id" "$@"
+  exec bash bin/beam-agent.sh --prepared-harness "$AGENT_KIND" --profile "$profile" "$id" "$@"
 fi
 # The offer doubles as the close key: any key closes, y goes on to the agent.
 if interactive; then
@@ -79,7 +97,7 @@ if interactive; then
   yn=""
   ask "Start a $BEAM_AGENT_KIND agent in it now? [y/N] " yn
   case "$yn" in
-    y|Y) exec bash bin/beam-agent.sh --profile "$profile" "$id" ;;
+    y|Y) exec bash bin/beam-agent.sh --prepared-harness "$AGENT_KIND" --profile "$profile" "$id" ;;
   esac
 fi
 pause
