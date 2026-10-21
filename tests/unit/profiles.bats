@@ -12,7 +12,7 @@ profile_args() {
   [ "$output" = $'claude\n<--model>\n<claude-opus-5>\n<--effort>\n<high>\n<--dangerously-skip-permissions>' ]
   profile_args codex-sol
   [ "$status" -eq 0 ]
-  [ "$output" = $'codex\n<--model>\n<gpt-5.6-sol>\n<-c>\n<model_reasoning_effort="high">\n<--sandbox>\n<workspace-write>\n<--ask-for-approval>\n<never>' ]
+  [ "$output" = $'codex\n<--model>\n<gpt-5.6-sol>\n<-c>\n<model_reasoning_effort="high">\n<--sandbox>\n<workspace-write>\n<--ask-for-approval>\n<never>\n<-c>\n<sandbox_workspace_write.network_access=true>' ]
   profile_args claude-sonnet
   [ "$status" -eq 0 ]
   [[ "$output" == *'<claude-sonnet-5>'*'<medium>'* ]]

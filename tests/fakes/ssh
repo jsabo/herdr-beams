@@ -23,6 +23,28 @@ if [[ "$cmd" == *"integration install"* ]] && [ -e "$FAKE_STATE/integration-fail
 fi
 
 case "$cmd" in
+  *"codex app-server"*)
+    printf '%s\n' '/home/beams/.codex'
+    while IFS= read -r request; do
+      printf '%s\n' "$request" >> "$FAKE_STATE/codex-rpc.log"
+      method="$(jq -r '.method' <<<"$request")"
+      case "$method" in
+        initialize) printf '%s\n' '{"id":1,"result":{}}' ;;
+        hooks/list)
+          if [ -e "$FAKE_STATE/codex-rpc-error" ]; then
+            printf '%s\n' '{"id":2,"error":{"code":-32601,"message":"hooks/list unsupported"}}'
+          elif [ -f "$FAKE_STATE/codex-hooks.json" ]; then
+            jq -c '{id:2,result:.}' "$FAKE_STATE/codex-hooks.json"
+          else
+            printf '%s\n' "{\"id\":2,\"result\":{\"data\":[{\"hooks\":[{\"key\":\"herdr-session\",\"eventName\":\"sessionStart\",\"handlerType\":\"command\",\"command\":\"bash '/home/beams/.codex/herdr-agent-state.sh' session\",\"sourcePath\":\"/home/beams/.codex/hooks.json\",\"enabled\":true,\"currentHash\":\"sha256:expected\"}]}]}}"
+          fi ;;
+        config/batchWrite)
+          if [ -e "$FAKE_STATE/codex-write-error" ]; then
+            printf '%s\n' '{"id":3,"error":{"message":"config is read-only"}}'
+          else printf '%s\n' '{"id":3,"result":{}}'; fi ;;
+      esac
+    done
+    exit 0 ;;
   true)
     f="$FAKE_STATE/ssh-fail-count"
     if [ -s "$f" ] && [ "$(cat "$f")" -gt 0 ]; then

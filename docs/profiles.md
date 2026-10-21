@@ -65,6 +65,11 @@ any Beam or workspace is created.
   `on-request`, `untrusted`, or `never`, passed through `--ask-for-approval`.
   Sandbox: `read-only`, `workspace-write`, or `danger-full-access`, passed through
   `--sandbox`. `never` suppresses approval requests but retains the selected sandbox.
+  With `workspace-write`, optional `network_access` accepts `true` or `false` and
+  sets `-c sandbox_workspace_write.network_access=...`. Bundled Codex profiles
+  enable networking for Teleport and repository access. Omitting the field in a
+  custom profile preserves Codex's configured network policy. Claude profiles and
+  other sandbox modes must omit this field.
 
 Set defaults in the plugin's `env` file:
 
@@ -95,3 +100,9 @@ Selected profiles and supplied workspace/prompt arguments survive the popup flow
 that first creates a Beam. Profile approval prompts may require opening the agent's
 pane; the launch popup does not wait for the agent. Harness binaries come from the
 Beam image and are not installed by the profile loader.
+
+Codex setup trusts only the installed Herdr `SessionStart` command through Codex's
+app-server API, using Codex's reported hash and config writer. It does not bypass
+hook trust globally. Other untrusted hooks can still require manual review.
+The installed Codex must expose `hooks/list` and `config/batchWrite`; an unsupported
+API or unwritable config stops setup before workspace creation.

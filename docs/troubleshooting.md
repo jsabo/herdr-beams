@@ -64,3 +64,19 @@
   `bash bin/beam-reconcile.sh` from the checkout. Registration failures can also be
   caused by authentication, networking or version compatibility; they do not prove
   Herdr is missing.
+
+- **Codex waits for hook review or agent startup times out.** Update the plugin.
+  Current versions register trust for the installed Herdr `SessionStart` hook
+  before starting Codex. If an existing session skipped this hook, exit that Codex
+  session and launch again after updating. Other hooks still need their own review.
+  If setup reports an unsupported API, update Codex in the Beam; if config is
+  unwritable, correct its permissions. Do not keep launching duplicate agents.
+- **Codex `tsh` commands fail with `socket: operation not permitted`.** Codex's
+  network sandbox can block DNS even while the Beam itself is connected. The
+  bundled Codex profiles enable network access while keeping `workspace-write`.
+  Custom profiles must explicitly set `"network_access": true` with that sandbox
+  if they need networking; approval `never` alone does not enable it.
+- **Codex reports missing model metadata.** A model alias can return responses
+  without a matching Codex catalog entry. Check that the configured inference
+  endpoint and installed Codex expose metadata for your selected alias. The plugin
+  does not invent model capabilities or change aliases automatically.
