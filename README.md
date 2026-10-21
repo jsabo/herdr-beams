@@ -6,11 +6,20 @@
 
 **Your agents. Your infrastructure. Teleport Beams in herdr.**
 
-Launch Claude Code and Codex in [Teleport Beams](https://beams.run) directly from
-the [herdr](https://herdr.dev) sidebar. Beams provides trusted runtimes with
+Bring your agent harness to [Teleport Beams](https://beams.run) from the
+[herdr](https://herdr.dev) sidebar. Beams provides trusted runtimes with
 delegated identity and infrastructure access without secrets. This plugin adds
 workspace creation, per-launch agent profiles, and agent status alongside your
 local work.
+
+Beams can run the agent harness you choose, including Claude Code, Codex, and Pi.
+Claude Code and Codex come preinstalled in the current Beam image; install other
+harnesses, such as Pi, inside the Beam and configure them for your tenant's
+inference endpoints.
+
+The plugin's profile picker and direct launch actions currently support Claude
+Code and Codex. You can run other installed agents from a shell in the Beam;
+profile-based launch support depends on the plugin and herdr integrations.
 
 Create a runtime, choose your agent and model, send a task, and follow its progress
 without leaving herdr.
@@ -24,9 +33,10 @@ without leaving herdr.
 - **Your infrastructure, your identity.** Beams connects agents to infrastructure
   through delegated Teleport identity, with access governed by Teleport roles and
   attributed in its audit log.
-- **Your choice of agent and model.** The plugin launches Claude Code or Codex with
-  named model, effort, approval, and sandbox settings. Agents use the tenant's
-  inference proxy; supported models depend on its aliases and the installed harness.
+- **Your choice of agent and model.** Install the harness that suits your task,
+  including Pi. Claude Code and Codex are preinstalled and have built-in launch
+  profiles in this plugin. Inference compatibility and available models depend on
+  the harness and your tenant's proxy configuration.
 - **Every agent in one sidebar.** herdr shows agent activity and completion across
   your laptop and Beams; open an agent's pane whenever you need it.
 - **Isolated execution.** Beams runs workloads in microVMs, separating agent
@@ -182,6 +192,9 @@ existing profiles by the Beam UUID, so manual renames and prefix changes do not
 prevent an agent from starting.
 
 ### Agent profiles
+
+Profiles currently accept `claude` and `codex` harnesses. Installing another agent
+in a Beam does not add it to the profile picker; run it from the Beam's shell.
 
 Choose a profile interactively:
 

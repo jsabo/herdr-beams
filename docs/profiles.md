@@ -2,6 +2,14 @@
 
 [Back to the README](../README.md)
 
+## Supported harnesses
+
+The profile loader supports `claude` (Claude Code) and `codex`. These agents come
+preinstalled in the current Beam image. Beams can also run other agent harnesses,
+such as Pi, installed inside the runtime. Configure those agents for the tenant's
+inference endpoints and launch them from a shell in the Beam. Installing a harness
+does not automatically add profile support or herdr agent-state integration.
+
 Use `herdr plugin action invoke herdr-beams.profiles` to choose a profile in a
 popup. The existing `agent` entry keeps its legacy behavior unless
 `BEAM_AGENT_PROFILE` is set. For a direct hotkey, use `command = "herdr-beams.claude"`
