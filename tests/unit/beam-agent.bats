@@ -189,3 +189,41 @@ setup() { setup_fakes; }
   [ "$status" -ne 0 ]
   [[ "$output" == *'unknown machine missing-machine'* ]]
 }
+
+@test "agent: invalid workspace responses never start an agent and clean temporary files" {
+  export TMPDIR="$BATS_TEST_TMPDIR/launch-temp"
+  mkdir -p "$TMPDIR"
+  for response in '{}' 'null' '[]' '{' '{"result":{"root_pane":{"pane_id":null}}}' \
+      '{"result":{"root_pane":{"pane_id":""}}}' '{"result":{"root_pane":{"pane_id":7}}}'; do
+    printf '%s' "$response" > "$FAKE_STATE/workspace-response.json"
+    : > "$FAKE_LOG"
+    run_script beam-agent.sh alpha-one review
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'returned no valid pane ID'* ]]
+    ! grep -q 'agent start' "$FAKE_LOG"
+    [ -z "$(ls -A "$TMPDIR")" ]
+  done
+}
+
+@test "agent: malformed agent lists fail with the created workspace's recovery context" {
+  for response in '{}' '{"result":{"agents":null}}' '{"result":{"agents":[{}]}}' \
+      '{"result":{"agents":[{"name":7}]}}'; do
+    printf '%s' "$response" > "$FAKE_STATE/agent-list-response.json"
+    : > "$FAKE_LOG"
+    run_script beam-agent.sh alpha-one review
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'invalid agent list'*'pane w9:p1'* ]]
+    ! grep -q 'agent start' "$FAKE_LOG"
+  done
+}
+
+@test "agent: failed agent listing cleans its temporary file" {
+  export TMPDIR="$BATS_TEST_TMPDIR/launch-temp"
+  mkdir -p "$TMPDIR"
+  touch "$FAKE_STATE/agent-list-fails"
+  run_script beam-agent.sh alpha-one review
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'could not list the agents'* ]]
+  [ -z "$(ls -A "$TMPDIR")" ]
+  ! grep -q 'agent start' "$FAKE_LOG"
+}

@@ -24,7 +24,11 @@ logged_in() { [ ! -e "$FAKE_STATE/not-logged-in" ]; }
 case "$cmd" in
   ls)
     logged_in || { echo "ERROR: not logged in" >&2; exit 1; }
-    cat "$beams"
+    if [ -e "$FAKE_STATE/ls-includes-add" ]; then
+      jq --slurpfile n "$FAKE_STATE/add.json" 'map(select(.id != $n[0].id)) + $n' "$beams"
+    else
+      cat "$beams"
+    fi
     ;;
   add)
     logged_in || { echo "ERROR: not logged in" >&2; exit 1; }
@@ -33,6 +37,10 @@ case "$cmd" in
     printf '%s\n' "$new"
     ;;
   rm)
+    if [ -e "$FAKE_STATE/rm-fails" ] && { [ ! -s "$FAKE_STATE/rm-fails" ] || grep -Fxq -- "$1" "$FAKE_STATE/rm-fails"; }; then
+      echo "ERROR: simulated deletion failure" >&2
+      exit 1
+    fi
     if ! jq -e --arg id "$1" 'any(.id == $id)' "$beams" >/dev/null; then
       printf 'ERROR: beam "%s" not found\n' "$1" >&2
       exit 1

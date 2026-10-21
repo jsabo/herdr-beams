@@ -46,3 +46,15 @@
   compose plain `alt` chords into a character before herdr sees them, and window
   managers such as Magnet take some `ctrl+alt` chords system-wide. The `prefix+`
   bindings above avoid both: only herdr sees the key after the prefix.
+
+- **`plugin ... is already linked from a local path`.** Update the linked checkout,
+  or uninstall the link and install from GitHub. Keep the configuration directory.
+  See [local-link updates](../README.md#updating-a-locally-linked-plugin).
+- **Beam deletion fails.** The plugin leaves the runtime's sidebar entry in place.
+  Check the `tsh` error and `tsh beams ls` before retrying. Remove-all stops at the
+  failed Beam and saves earlier successful deletions.
+- **`could not register <id>`.** The original Herdr error follows the message.
+  Check SSH access and the Herdr installation on that existing Beam, then run
+  `bash bin/beam-reconcile.sh` from the checkout. Registration failures can also be
+  caused by authentication, networking or version compatibility; they do not prove
+  Herdr is missing.

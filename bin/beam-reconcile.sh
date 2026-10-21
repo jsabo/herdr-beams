@@ -25,6 +25,11 @@ quick_reconcile
 # already on the Beam, which is exactly the case we want to pick up. A profile
 # whose label is not the current form (made by an older plugin version, or
 # BEAM_LABEL_PREFIX changed) is renamed in place: no SSH, one herdr call.
+registration_errors="$(mktemp)"
+# Listing costs about 0.02 s locally (docs/measured.md); batch the refresh to
+# avoid one extra process and full list parse per changed registration.
+registrations_changed=0
+trap 'rc=$?; rm -f "$registration_errors"; finish "$rc"' EXIT
 while IFS=$'\t' read -r id uuid; do
   label="$(machine_label "$id")"
   pid="$(machine_id_for_uuid "$uuid")"
@@ -35,17 +40,22 @@ while IFS=$'\t' read -r id uuid; do
       # other order and the parser rejects it (docs/measured.md).
       "$HERDR" machine rename "$pid" --label "$label" >/dev/null
       printf 'beams: relabelled %s as %s\n' "$old" "$label"
-      refresh_machines
+      MACHINES_JSON="$(jq --arg p "$pid" --arg l "$label" 'map(if .id == $p then .label = $l else . end)' <<<"$MACHINES_JSON")"
+      export MACHINES_JSON
+      registrations_changed=1
     fi
   else
     host="$(beam_host "$uuid")"
-    if "$HERDR" machine add "ssh://$host" --label "$label" </dev/null >/dev/null 2>&1; then
+    if "$HERDR" machine add "ssh://$host" --label "$label" </dev/null >/dev/null 2>"$registration_errors"; then
       printf 'beams: added profile for %s as %s\n' "$id" "$label"
-      refresh_machines
+      registrations_changed=1
     else
-      printf 'beams: %s has no herdr yet; use the New Beam pane or run beam-agent\n' "$id"
+      printf 'beams: could not register %s; check SSH access and install herdr on the existing Beam, then run bash bin/beam-reconcile.sh\n' "$id"
+      cat "$registration_errors" >&2
+      printf 'beams: install if missing: ssh %s %s\n' "$host" "'curl -fsSL https://herdr.dev/install.sh | sh'"
     fi
   fi
 done < <(beams_json | jq -r '.[] | [.id, .uuid] | @tsv')
 
+[ "$registrations_changed" = 0 ] || refresh_machines
 save_state

@@ -2,8 +2,7 @@
 # Delete every Beam on the tenant and drop their herdr machine profiles: the
 # one-key teardown. Lists what will go, asks once from the plugin menu (not
 # from a keybinding, BEAMS_YES=1, nor without a terminal), then removes each
-# Beam the way beam-rm does (profile first, so the sidebar never shows a dead
-# entry).
+# Beam the way beam-rm does (runtime first, preserving the sidebar on failure).
 # Usage: beam-rm-all.sh
 cd "$(dirname "$0")/.." || exit 1
 # shellcheck disable=SC1091
@@ -36,14 +35,7 @@ if must_confirm; then
 fi
 
 for id in "${ids[@]}"; do
-  pid="$(machine_id "$id")"
-  if [ -n "$pid" ]; then
-    "$HERDR" machine remove "$pid" >/dev/null
-    off "sidebar entry for $id removed"
-  fi
-  tshb rm "$id"
-  forget_beam "$id"
+  remove_beam "$id"
 done
-save_state
 ok "removed ${#ids[@]} Beam(s); $BEAMS_PROXY has none left"
 pause

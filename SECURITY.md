@@ -13,33 +13,50 @@ running herdr (`$HERDR_BIN_PATH`):
   you put in the plugin's `env` file; the active `tsh` profile is never assumed.
 - `ssh beams@<uuid>.<tenant>` through your own SSH config, with `BatchMode=yes` and one
   shared connection per Beam (`ControlMaster`, socket under `/tmp/herdr-beams-*`).
-- `herdr machine add|remove|status|list` and `herdr --machine <beam> …`.
+- `herdr machine add|rename|remove|list` and `herdr --machine <beam> …`.
 
-On the Beam, once per Beam and only when missing:
+On the Beam:
 
-- `curl -fsSL https://herdr.dev/install.sh | sh` to install herdr into `~/.local/bin`.
-- `herdr integration install <BEAM_AGENT_KIND>` so herdr sees the agent's state.
+- `curl -fsSL https://herdr.dev/install.sh | sh` to install herdr into `~/.local/bin`
+  when no installation is found. Existing installations on PATH are reused.
+- `herdr integration install <selected harness>` during preparation and before
+  launches on existing Beams, so herdr sees the agent's state. A direct handoff
+  from creation reuses the integration just installed.
 - A section `## Inside a Beam (added by herdr-beams)` appended to `~/.claude/CLAUDE.md`
   and `~/AGENTS.md`. The text is `beam_notes` in `bin/common.sh`.
 
 ## What it stores
 
 - Your settings in `$(herdr plugin config-dir herdr-beams)/env`: the tenant name and,
-  optionally, the SSH login, agent kind and agent arguments.
+  optionally, the SSH login, agent kind, agent arguments and default profiles.
+- Optional user profile overrides in the configuration directory's `profiles.json`.
 - A cache of the last Beam list (`beams.json`) in herdr's plugin state directory.
-- Machine entries in herdr's own machine list, one per Beam, labelled with the Beam id.
+- Machine entries in herdr's own machine list, one per Beam, labelled `beam/<id>`
+  by default (configurable).
 
 No credentials. `tsh` holds your Teleport login; the Beam holds a delegated identity
 that Teleport issues and renews. The plugin never reads either.
 
-## Agents run with permission prompts off
+## Agent permissions and delegated identity
 
-`BEAM_AGENT_ARGS` defaults to `--dangerously-skip-permissions`. The Beam is the
-boundary: an isolated microVM with a delegated identity that carries a subset of your
-roles, Teleport's role-based access control (RBAC), and an audit log of every SSH,
-database and inference call. There is nobody at the keyboard of a headless agent to
-answer prompts. If you want the prompts anyway, set `BEAM_AGENT_ARGS=""` in the `env`
-file.
+Legacy launches without a profile default to Claude Code with
+`--dangerously-skip-permissions`. Set `BEAM_AGENT_ARGS=""` in the `env` file to keep
+that harness's permission prompts. Profile launches use their own approval and
+sandbox settings; legacy arguments are not added to profile arguments.
+
+Bundled Claude profiles use bypass approval. The bundled Codex profiles use
+`never` or `on-request` approval with `workspace-write` sandboxing. Codex `never`
+suppresses approval requests while retaining the selected sandbox. Profile
+approval prompts may require opening the agent's pane. See the
+[profile reference](docs/profiles.md) for allowed settings and overrides.
+
+Harness permissions and Teleport authorization are separate controls. Beams
+provides runtime isolation and delegated identity; harness settings govern what
+the agent may execute within that environment. In the tested beta, a Beam's
+delegation inherited the user's role set. Do not assume it receives a restricted
+subset. Current Beams product workflows describe scoped roles and reviewed plans;
+this plugin does not configure those workflows. See
+[runtime compatibility](docs/architecture.md#runtime-lifecycle-and-compatibility).
 
 ## Reporting
 

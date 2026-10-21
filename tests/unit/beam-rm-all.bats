@@ -3,12 +3,12 @@ load '../helpers'
 
 setup() { setup_fakes; }
 
-@test "rm-all: removes every Beam, profile first, in list order" {
+@test "rm-all: removes every Beam, runtime first, in list order" {
   run_script beam-rm-all.sh
   [ "$status" -eq 0 ]
   [[ "$output" == *"removed 2 Beam(s)"* ]]
-  calls_in_order "herdr machine remove id-alpha-one" \
-    "tsh --proxy=example.beams.sh beams rm alpha-one" \
+  calls_in_order "tsh --proxy=example.beams.sh beams rm alpha-one" \
+    "herdr machine remove id-alpha-one" \
     "tsh --proxy=example.beams.sh beams rm beta-two"
   # beta-two has no profile, so the only other removal is the expired Beam
   [ "$(call_count 'machine remove')" -eq 2 ]
@@ -40,7 +40,7 @@ setup() { setup_fakes; }
 @test "rm-all: at the keyboard, y deletes them all" {
   run_interactive beam-rm-all.sh <<<$'y\nx'
   [ "$status" -eq 0 ]
-  calls_in_order "herdr machine remove id-alpha-one" "beams rm alpha-one" "beams rm beta-two"
+  calls_in_order "beams rm alpha-one" "herdr machine remove id-alpha-one" "beams rm beta-two"
 }
 
 @test "rm-all: BEAMS_YES=0 in the settings file brings the question back for a keybinding" {
@@ -56,7 +56,7 @@ setup() { setup_fakes; }
   [ "$status" -eq 0 ]
   [[ "$output" != *"[y/N]"* ]]
   [[ "$output" == *"alpha-one (in the sidebar)"*"removed 2 Beam(s)"* ]]
-  calls_in_order "herdr machine remove id-alpha-one" "beams rm alpha-one" "beams rm beta-two"
+  calls_in_order "beams rm alpha-one" "herdr machine remove id-alpha-one" "beams rm beta-two"
 }
 
 @test "rm-all: with no Beams, says so and exits cleanly" {
@@ -70,4 +70,26 @@ setup() { setup_fakes; }
 @test "rm-all: drops an expired Beam's profile on entry" {
   run_script beam-rm-all.sh
   calls_in_order "herdr machine remove id-gone-beam" "herdr machine remove id-alpha-one"
+}
+
+@test "rm-all: partial deletion saves progress and retains undeleted profiles" {
+  printf 'beta-two\n' > "$FAKE_STATE/rm-fails"
+  jq '. + [{id:"id-beta-two",label:"beam/beta-two",target:"ssh://beams@bbbbbbbb-0000-4000-8000-000000000002.example.beams.sh"}]' \
+    "$FAKE_STATE/machines.json" > "$FAKE_STATE/m.tmp"
+  mv "$FAKE_STATE/m.tmp" "$FAKE_STATE/machines.json"
+  run_script beam-rm-all.sh
+  [ "$status" -ne 0 ]
+  [ "$(jq -r '.[].id' "$FAKE_STATE/beams.json")" = beta-two ]
+  [ "$(jq -r '.[].id' "$HERDR_PLUGIN_STATE_DIR/beams.json")" = beta-two ]
+  jq -e 'any(.id == "id-beta-two") and all(.id != "id-alpha-one")' "$FAKE_STATE/machines.json"
+  ! grep -q 'machine remove id-beta-two' "$FAKE_LOG"
+}
+
+@test "rm-all: first deletion failure preserves every live Beam" {
+  printf 'alpha-one\n' > "$FAKE_STATE/rm-fails"
+  run_script beam-rm-all.sh
+  [ "$status" -ne 0 ]
+  [ "$(jq length "$FAKE_STATE/beams.json")" -eq 2 ]
+  jq -e 'any(.id == "id-alpha-one")' "$FAKE_STATE/machines.json"
+  ! grep -q 'beams rm beta-two\|machine remove id-alpha-one' "$FAKE_LOG"
 }

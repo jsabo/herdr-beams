@@ -51,6 +51,13 @@ wait "$add_pid" \
 beam="$(cat "$add_json")"
 add_pid=""
 rm -f "$add_json"
+FAIL_HINT="Beam creation returned an invalid response; inspect tsh --proxy=$BEAMS_PROXY beams ls before retrying"
+id="$(jq -er '.id | select(type == "string" and length > 0)' <<<"$beam" 2>/dev/null)" || id=""
+if [ -n "$id" ]; then
+  FAIL_HINT="Beam $id exists without a sidebar entry; remove it with the rm pane or: bash bin/beam-rm.sh $id"
+fi
+jq -es 'length == 1 and (.[0] | type == "object" and all(.id, .uuid, .expires; type == "string" and length > 0))' <<<"$beam" >/dev/null \
+  || die "invalid Beam provisioning response; expected id, uuid and expires"
 id="$(jq -r .id <<<"$beam")"
 uuid="$(jq -r .uuid <<<"$beam")"
 expires="$(jq -r .expires <<<"$beam")"
