@@ -20,9 +20,9 @@ Bundled examples in [profiles/defaults.json](../profiles/defaults.json):
 
 | Profile | Harness | Example model ID | Effort | Approval | Sandbox |
 |---|---|---|---|---|---|
-| `claude-opus` | Claude Code | `anthropic.claude-opus-5` | high | bypass | harness default |
-| `claude-sonnet` | Claude Code | `anthropic.claude-sonnet-5` | medium | bypass | harness default |
-| `codex-sol` | Codex | `openai.gpt-5.6-sol` | high | never | workspace-write |
+| `claude-opus` | Claude Code | `anthropic.claude-opus-5` | high | default (ask) | harness default |
+| `claude-sonnet` | Claude Code | `anthropic.claude-sonnet-5` | medium | default (ask) | harness default |
+| `codex-sol` | Codex | `openai.gpt-5.6-sol` | high | on-request | workspace-write |
 | `codex-terra` | Codex | `openai.gpt-5.6-terra` | medium | on-request | workspace-write |
 
 Bundled profiles use provider-qualified IDs advertised by compatible inference
@@ -66,8 +66,8 @@ Codex also requires `sandbox`; Claude profiles must omit it. Unknown fields,
 unsupported values, malformed JSON and control characters in model IDs fail before
 any Beam or workspace is created.
 
-- Claude effort: `low`, `medium`, `high`, `max`. Approval: `default` (leave the
-  harness's permission configuration intact) or `bypass`
+- Claude effort: `low`, `medium`, `high`, `max`. Approval: `default` (select the
+  harness's normal permission mode via `--permission-mode default`) or `bypass`
   (`--dangerously-skip-permissions`).
 - Codex effort: `minimal`, `low`, `medium`, `high`, `xhigh`, passed through
   `-c model_reasoning_effort="..."`. Approval: `default` (omit the flag),
@@ -76,7 +76,8 @@ any Beam or workspace is created.
   `--sandbox`. `never` suppresses approval requests but retains the selected sandbox.
   With `workspace-write`, optional `network_access` accepts `true` or `false` and
   sets `-c sandbox_workspace_write.network_access=...`. Bundled Codex profiles
-  enable networking for Teleport and repository access. Omitting the field in a
+  disable networking by default. Set it to `true` in a custom profile for Teleport
+  and repository access. Omitting the field in a
   custom profile preserves Codex's configured network policy. Claude profiles and
   other sandbox modes must omit this field.
 
@@ -115,3 +116,34 @@ app-server API, using Codex's reported hash and config writer. It does not bypas
 hook trust globally. Other untrusted hooks can still require manual review.
 The installed Codex must expose `hooks/list` and `config/batchWrite`; an unsupported
 API or unwritable config stops setup before workspace creation.
+
+Bundled Claude profiles explicitly use normal permission mode, not permission
+bypass. This mode is not network isolation: existing tool allow rules and sandbox
+settings still apply. The Codex network switch restricts sandboxed agent commands;
+model inference still needs connectivity. Existing sessions keep their settings.
+
+Create `profiles.json` in the plugin configuration directory to opt into broader
+permissions. Records replace the complete bundled profile by name. For example:
+
+```json
+{
+  "codex-sol": {
+    "harness": "codex",
+    "model": "openai.gpt-5.6-sol",
+    "effort": "high",
+    "approval": "never",
+    "sandbox": "workspace-write",
+    "network_access": true
+  },
+  "claude-opus": {
+    "harness": "claude",
+    "model": "anthropic.claude-opus-5",
+    "effort": "high",
+    "approval": "bypass"
+  }
+}
+```
+
+The legacy unprofiled `agent` action still uses `BEAM_AGENT_ARGS` from `env`. Set
+`BEAM_AGENT_PROFILE=claude-opus` there to use the bundled prompt-based profile;
+existing explicit permission-bypass settings are not rewritten by updates.

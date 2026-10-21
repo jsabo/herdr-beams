@@ -15,7 +15,7 @@
 
 id = "herdr-beams"
 name = "Teleport Beams"
-version = "0.8.6"
+version = "0.8.7"
 # 0.9.1 added `herdr --machine` forwarding, manifest actions, `plugin action
 # invoke` and `plugin pane open --env`, everything the scripts use (checked
 # against the 0.9.1 binary's help and the v0.9.1 source). `machine rename` is

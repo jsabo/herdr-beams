@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.7 (unreleased)
+
+- Default bundled Claude profiles to explicit normal permission mode and bundled Codex profiles to on-request approvals with sandbox network access disabled. Keep broader permissions available through custom profiles and document the legacy env path and Claude network-isolation limits.
+
 ## 0.8.6 (unreleased)
 
 - Scope `HERDR_AGENT=codex` to the launched Codex process so Node wrappers named MainThread remain detectable by Herdr. Keep normal agent startup, naming, arguments, and hook setup.

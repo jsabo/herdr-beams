@@ -73,7 +73,7 @@
   unwritable, correct its permissions. Do not keep launching duplicate agents.
 - **Codex `tsh` commands fail with `socket: operation not permitted`.** Codex's
   network sandbox can block DNS even while the Beam itself is connected. The
-  bundled Codex profiles enable network access while keeping `workspace-write`.
+  bundled Codex profiles disable network access while keeping `workspace-write`.
   Custom profiles must explicitly set `"network_access": true` with that sandbox
   if they need networking; approval `never` alone does not enable it.
 - **Codex reports missing model metadata.** A model alias can return responses
