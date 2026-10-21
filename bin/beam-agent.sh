@@ -112,6 +112,15 @@ while grep -qx "$agent" <<<"$taken"; do
   n=$((n + 1))
 done
 
+# Linux Node wrappers can expose only "MainThread" to process detection. Install
+# a one-use shell shim in this fresh pane: only the actual Codex process inherits
+# the hint, and the shim removes itself before running the executable.
+if [ "$AGENT_KIND" = codex ]; then
+  "$HERDR" --machine "$machine" pane run "$pane" \
+    'codex() { unset -f codex; HERDR_AGENT=codex command codex "$@"; }' >/dev/null \
+    || die "could not prepare Codex process detection in pane $pane; no agent was launched"
+fi
+
 "$HERDR" --machine "$machine" agent start "$agent" --kind "$AGENT_KIND" --pane "$pane" -- "${AGENT_ARGS[@]}" >/dev/null
 phase "$AGENT_KIND is ready as agent $agent"
 

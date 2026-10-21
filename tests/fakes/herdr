@@ -64,6 +64,12 @@ case "${1:-} ${2:-}" in
     fi
     printf '{"id":"cli:agent:list","result":{"agents":%s}}\n' "$names"
     ;;
+  "pane run")
+    [ ! -e "$FAKE_STATE/pane-run-fails" ] || exit 1
+    [ "$#" -eq 4 ] || { echo 'usage: herdr pane run <pane-id> <command>' >&2; exit 1; }
+    printf '%s' "$4" > "$FAKE_STATE/last-pane-command"
+    printf '{"result":{}}\n'
+    ;;
   "agent start")
     printf '%s\0' "$@" > "$FAKE_STATE/last-agent-argv"
     printf '{"id":"cli:agent:start","result":{"agent":{"name":"%s","agent_status":"idle","pane_id":"w9:p1"},"type":"agent_started"}}\n' "$3"

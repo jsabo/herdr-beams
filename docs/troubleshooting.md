@@ -80,3 +80,11 @@
   without a matching Codex catalog entry. Check that the configured inference
   endpoint and installed Codex expose metadata for your selected alias. The plugin
   does not invent model capabilities or change aliases automatically.
+
+- **Codex opens but is absent from Agents, and startup times out.** If
+  `herdr --machine beam/<id> pane process-info --pane <pane-id>` shows a Node
+  wrapper named `MainThread`, update the plugin. New launches set Herdr's
+  process hint only for Codex, using a one-use Bash function in the new pane;
+  the function removes itself before starting Codex. Existing sessions must be
+  exited and relaunched. This does not change model routing or repair unrelated
+  SSH disconnects. Check `pane list` and `agent list` after relaunch.

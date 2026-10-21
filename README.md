@@ -265,6 +265,9 @@ profiles enable network access inside `workspace-write` so agents can reach
 Teleport resources. Custom profiles can set `"network_access": false` to keep it
 disabled, or omit the field to use Codex's configuration.
 
+Codex launches also set a process-scoped `HERDR_AGENT=codex` hint so Herdr can
+recognize Node wrappers that report their process name as `MainThread`.
+
 Before Codex starts, the plugin registers trust for the exact Herdr `SessionStart`
 hook it installed. Other hooks retain their existing trust settings. This requires
 Codex's `hooks/list` and `config/batchWrite` app-server APIs; setup errors stop the
