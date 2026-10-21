@@ -2,6 +2,23 @@
 # Sourced by every script in bin/ and by demo/demo.sh. Resolves the herdr
 # binary, the plugin directories and the Beams tenant, caches the two lists
 # every script needs, and provides the helpers they share.
+# Herdr may inherit macOS's system Bash even when Homebrew Bash is installed.
+# Every entrypoint changes to the plugin root before sourcing this file; OLDPWD
+# preserves the launch directory for resolving a relative script argument.
+if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
+  _beams_entry="$0"
+  case "$_beams_entry" in /*) ;; *) _beams_entry="${OLDPWD:-$PWD}/$_beams_entry" ;; esac
+  for _beams_bash in "$(command -v bash)" /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    # shellcheck disable=SC2016 # The candidate Bash must expand its own version.
+    if [ -f "$_beams_entry" ] && [ -x "$_beams_bash" ] &&
+       "$_beams_bash" -c 'test "${BASH_VERSINFO[0]}" -ge 4' 2>/dev/null; then
+      export PATH="${_beams_bash%/*}:$PATH"
+      exec "$_beams_bash" "$_beams_entry" "$@"
+    fi
+  done
+  printf '%s\n' 'beams: Bash 4+ is required. On macOS, run: brew install bash' >&2
+  exit 1
+fi
 set -euo pipefail
 
 HERDR="${HERDR_BIN_PATH:-herdr}"

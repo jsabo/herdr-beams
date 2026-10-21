@@ -57,7 +57,8 @@ On the machine running the plugin:
 
 - herdr 0.9.1 or newer ([installation](https://herdr.dev)).
 - Bash 4+, `jq`, and OpenSSH. On macOS: `brew install bash jq`; the system Bash 3.2
-  is too old. Make sure herdr can find the newer `bash` on its PATH.
+  is too old. If launched with an older Bash, the plugin automatically switches to
+  Bash 4+ from PATH or the standard Apple Silicon / Intel Homebrew locations.
 - `tsh` 18.11+ and access to a Teleport Beams tenant.
 - The selected agent CLI available in the Beam image.
 
