@@ -69,6 +69,12 @@ if [ "$prepared_harness" != "$AGENT_KIND" ]; then
     || die "could not install $AGENT_KIND integration on $id"
 fi
 
+if [ "$AGENT_KIND" = codex ]; then
+  busy "registering the Herdr Codex hook on $id"
+  trust_codex_integration "$(beam_host "$(beam_uuid "$id")")" \
+    || die "could not prepare Codex hook trust on $id; no agent was launched"
+fi
+
 # The agent list (for the name) and the workspace are independent, and each
 # is a round trip to the Beam's herdr, so both run at once.
 taken_json="$(mktemp)"

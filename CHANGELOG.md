@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.4 (unreleased)
+
+- Trust the installed Herdr Codex SessionStart hook through Codex's app-server APIs before launch, preventing first-run hook review from blocking agent registration.
+- Enable network access in bundled Codex workspace-write profiles and support explicit boolean network overrides in custom profiles.
+- Explain hook setup failures, sandbox network denial, and missing model metadata in troubleshooting.
+
 ## 0.8.3 (unreleased)
 
 - Restart plugin scripts with Bash 4+ from PATH or Homebrew when herdr launches them with macOS system Bash, preserving arguments and configuration. Show an installation hint when no supported Bash is available.

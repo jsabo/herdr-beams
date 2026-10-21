@@ -189,7 +189,11 @@ tshb() { tsh --proxy="$BEAMS_PROXY" beams "$@"; }
 # readiness probe, an install and a service listing cost one Teleport session.
 SSH_OPTS=(-o BatchMode=yes -o ControlMaster=auto -o ControlPath=/tmp/herdr-beams-%C -o ControlPersist=60)
 # shellcheck disable=SC2029  # the remote command is passed through as given
-beam_ssh() { ssh "${SSH_OPTS[@]}" "$@"; }
+beam_ssh() {
+  # The bidirectional Codex transport needs its PID to belong to SSH itself.
+  if [ "${BEAMS_EXEC_SSH:-0}" = 1 ]; then exec ssh "${SSH_OPTS[@]}" "$@"; fi
+  ssh "${SSH_OPTS[@]}" "$@"
+}
 
 # ---- the two lists, fetched once per script run ---------------------------
 #
@@ -399,15 +403,16 @@ load_profiles() {
     def text: type == "string" and length > 0 and (test("[\u0000-\u001f\u007f]") | not);
     def profile:
       type == "object" and
-      ((keys - ["harness", "model", "effort", "approval", "sandbox"]) | length == 0) and
+      ((keys - ["harness", "model", "effort", "approval", "sandbox", "network_access"]) | length == 0) and
       (.model | text) and
       (if .harness == "claude" then
          (.effort as $e | ["low", "medium", "high", "max"] | index($e) != null) and
-         (.approval == "default" or .approval == "bypass") and (has("sandbox") | not)
+         (.approval == "default" or .approval == "bypass") and (has("sandbox") | not) and (has("network_access") | not)
        elif .harness == "codex" then
          (.effort as $e | ["minimal", "low", "medium", "high", "xhigh"] | index($e) != null) and
          (.approval as $a | ["default", "on-request", "never", "untrusted"] | index($a) != null) and
-         (.sandbox as $s | ["read-only", "workspace-write", "danger-full-access"] | index($s) != null)
+         (.sandbox as $s | ["read-only", "workspace-write", "danger-full-access"] | index($s) != null) and
+         (if has("network_access") then .sandbox == "workspace-write" and (.network_access | type == "boolean") else true end)
        else false end);
     if all(.[]; type == "object" and all(to_entries[];
          (.key | test("^[a-z][a-z0-9-]*$")) and (.value | profile)))
@@ -437,7 +442,8 @@ load_agent_profile() {
     (if .harness == "claude" then ["--effort", .effort] +
        (if .approval == "bypass" then ["--dangerously-skip-permissions"] else [] end)
      else ["-c", ("model_reasoning_effort=" + (.effort | tojson)), "--sandbox", .sandbox] +
-       (if .approval == "default" then [] else ["--ask-for-approval", .approval] end)
+       (if .approval == "default" then [] else ["--ask-for-approval", .approval] end) +
+       (if has("network_access") then ["-c", ("sandbox_workspace_write.network_access=" + (.network_access | tojson))] else [] end)
      end)' <<<"$record")"
   while IFS= read -r -d '' arg; do AGENT_ARGS+=("$arg"); done < <(jq -jr '.[] + "\u0000"' <<<"$args")
 }
@@ -470,3 +476,60 @@ install_agent_integration() {
     [ -n "$herdr_bin" ] || herdr_bin="$HOME/.local/bin/herdr"
     "$herdr_bin" integration install '"$kind"' >/dev/null'
 }
+
+# Codex trust is separate from tool approvals. Trust only the freshly installed
+# Herdr SessionStart declaration, using Codex's own hash and config writer.
+# A subshell owns the app-server transport and cleans it up on every exit path.
+trust_codex_integration() (
+  local host="$1" input output pid home expected states remaining deadline line
+  # shellcheck disable=SC2016 # These variables expand on the Beam.
+  coproc CODEX_TRUST { BEAMS_EXEC_SSH=1 beam_ssh "$host" '
+    set -e
+    cd "$HOME"
+    codex_home="${CODEX_HOME:-$HOME/.codex}"
+    case "$codex_home" in /*) ;; *) codex_home="$HOME/$codex_home" ;; esac
+    grep -qx "# HERDR_INTEGRATION_ID=codex" "$codex_home/herdr-agent-state.sh"
+    printf "%s\n" "$codex_home"
+    exec codex app-server
+  '; }
+  pid=$CODEX_TRUST_PID
+  exec {input}>&"${CODEX_TRUST[1]}" {output}<&"${CODEX_TRUST[0]}"
+  trap 'exec {input}>&- {output}<&-; kill "$pid" 2>/dev/null || :; wait "$pid" 2>/dev/null || :' EXIT
+  IFS= read -r -t 20 home <&"$output" || { bad "could not start Codex hook setup on the Beam"; exit 1; }
+  [[ "$home" == /* && "$home" != *$'\r'* ]] || exit 1
+  expected="$(jq -nr --arg p "$home/herdr-agent-state.sh" '"bash " + ($p | @sh) + " session"')"
+
+  # Ignore notifications, but bound the entire response wait, not each line.
+  codex_trust_rpc() {
+    local id="$1" request="$2"
+    printf '%s\n' "$request" >&"$input" || return 1
+    deadline=$((SECONDS + 20))
+    while :; do
+      remaining=$((deadline - SECONDS))
+      if [ "$remaining" -le 0 ] || ! IFS= read -r -t "$remaining" line <&"$output"; then
+        bad "Codex hook setup timed out; inspect the Beam before retrying"
+        return 1
+      fi
+      jq -e --argjson id "$id" '.id == $id' <<<"$line" >/dev/null 2>&1 || continue
+      if jq -e 'has("error")' <<<"$line" >/dev/null; then
+        bad "Codex hook setup: $(jq -r '.error.message' <<<"$line")"
+        return 1
+      fi
+      CODEX_TRUST_RESULT="$(jq -ce '.result' <<<"$line")" || return 1
+      return 0
+    done
+  }
+  codex_trust_rpc 1 '{"id":1,"method":"initialize","params":{"clientInfo":{"name":"herdr-beams","version":"0.8.4"},"capabilities":{"experimentalApi":true}}}' || exit 1
+  printf '%s\n' '{"method":"initialized"}' >&"$input"
+  codex_trust_rpc 2 '{"id":2,"method":"hooks/list","params":{"cwds":[]}}' || exit 1
+  states="$(jq -ce --arg path "$home/hooks.json" --arg command "$expected" '
+    [.data[].hooks[] | select(.sourcePath == $path and .eventName == "sessionStart" and
+      .handlerType == "command" and .command == $command and .pluginId == null and
+      .matcher == null and .enabled == true)] |
+    if length == 1 and (.[0].key | type == "string" and length > 0) and
+       (.[0].currentHash | type == "string" and startswith("sha256:")) then
+      {(.[0].key): {trusted_hash: .[0].currentHash}}
+    else error("expected exactly one installed Herdr SessionStart hook") end
+  ' <<<"$CODEX_TRUST_RESULT")" || { bad "could not identify the installed Herdr Codex hook"; exit 1; }
+  codex_trust_rpc 3 "$(jq -nc --argjson value "$states" '{id:3,method:"config/batchWrite",params:{edits:[{keyPath:"hooks.state",value:$value,mergeStrategy:"upsert"}],reloadUserConfig:true}}')" || exit 1
+)

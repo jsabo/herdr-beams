@@ -260,7 +260,15 @@ BEAM_CODEX_PROFILE=codex-sol
 Explicit selections override the default profile. With no profile, `agent` keeps
 its legacy settings: Claude Code with `--dangerously-skip-permissions` by default.
 Set `BEAM_AGENT_ARGS=""` to keep its permission prompts. Profile launches use their
-own approval settings; Codex `never` retains the selected sandbox.
+own approval settings; Codex `never` retains the selected sandbox. Bundled Codex
+profiles enable network access inside `workspace-write` so agents can reach
+Teleport resources. Custom profiles can set `"network_access": false` to keep it
+disabled, or omit the field to use Codex's configuration.
+
+Before Codex starts, the plugin registers trust for the exact Herdr `SessionStart`
+hook it installed. Other hooks retain their existing trust settings. This requires
+Codex's `hooks/list` and `config/batchWrite` app-server APIs; setup errors stop the
+launch before a workspace is created.
 
 See the [profile reference](docs/profiles.md) for overrides, supported values,
 validation, and command-line examples.
