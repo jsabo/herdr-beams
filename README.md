@@ -118,6 +118,8 @@ the same id, so `herdr plugin action invoke herdr-beams.<id>` opens it from any 
 |---|---|
 | `new` | Creates a Beam, installs herdr on it, adds it to the sidebar as `beam/<id>`, and offers to start an agent. Prints a tick and a timestamp per phase. |
 | `agent` | Picks a Beam (or creates one when there is none), opens a workspace on it, starts the agent (`BEAM_AGENT_KIND`, Claude Code by default) in the workspace's root pane and sends a first prompt. The agent list in the sidebar shows it working, then done. |
+| `profiles` | Picks a launch profile (harness, model, effort and approval), then a Beam and workspace. |
+| `claude` / `codex` | Launches the configured harness profile directly, suitable for hotkeys. |
 | `status` | One card per Beam: whether it is in the sidebar, region, expiry, SSH address. Whether herdr can reach it is the dot on its sidebar entry. |
 | `services` | `beamctl list` on a Beam, then follow one service's logs. |
 | `publish` | Exposes port 8080 of a Beam as a Teleport application and prints its URL. |
@@ -206,22 +208,24 @@ scripts in `bin/`, and they do exactly this:
   `ssh beams@<uuid>.<tenant>` (through your SSH config, one shared connection per
   Beam), `herdr machine add|rename|remove|list`, and `herdr --machine beam/<id> …` for
   workspaces and agents on the Beam.
-- **On the Beam, once**: `curl -fsSL https://herdr.dev/install.sh | sh` if herdr is
-  missing, `herdr integration install <BEAM_AGENT_KIND>`, and a section
+- **On the Beam**: `curl -fsSL https://herdr.dev/install.sh | sh` if herdr is
+  missing, `herdr integration install <selected harness>`, and a section
   `## Inside a Beam (added by herdr-beams)` appended to the Beam's `~/.claude/CLAUDE.md`
   and `~/AGENTS.md`. The text is `beam_notes` in `bin/common.sh`: the facts an agent
   otherwise spends its first minutes rediscovering (which `tsh` commands the delegated
   identity cannot run, which database engines have a VNet path, which clients are not
-  installed).
+  installed). The selected integration is also installed idempotently before each
+  agent launch, including on an existing Beam.
 - **Where it writes on the laptop**: your settings in
   `$(herdr plugin config-dir herdr-beams)/env`, a cache of the Beam list in herdr's
-  plugin state directory, and machine entries in herdr's own machine list. Nothing
-  else. It stores no credentials; `tsh` holds your login.
-- **Agents run with permission prompts off.** `BEAM_AGENT_ARGS` defaults to
+  plugin state directory, machine entries in herdr's own machine list, and optional
+  profile overrides in the plugin config directory. It stores no credentials;
+  `tsh` holds your login.
+- **Legacy agents run with permission prompts off.** `BEAM_AGENT_ARGS` defaults to
   `--dangerously-skip-permissions`, because the Beam is the boundary: the sandbox,
   Teleport's role-based access control (RBAC) and the audit log are the guardrails,
   and there is no one at the keyboard to answer prompts. Set `BEAM_AGENT_ARGS=""` to
-  keep the prompts.
+  keep the prompts. Profiles select approval and sandbox settings per launch.
 
 herdr does not review or sandbox plugin code, and listings on herdr.dev are not
 reviewed either; a plugin runs as your user with your environment, like any editor or
@@ -243,6 +247,94 @@ later, pin a release tag: `herdr plugin install jsabo/herdr-beams --ref v0.7.0`.
 | `BEAM_AGENT_KIND` | `claude` | herdr agent kind started by `agent` and whose integration `new` installs; the Beam image ships `claude` and `codex`, any other kind needs its CLI installed on the Beam first |
 | `BEAM_AGENT_ARGS` | `--dangerously-skip-permissions` | arguments passed to the agent binary; quote more than one, for example `BEAM_AGENT_ARGS="--dangerously-skip-permissions --model opus"` to override the model the Beam image pins |
 | `BEAMS_YES` | unset | the actions set it to `1` so a keybinding deletes or creates without a y/N question; `BEAMS_YES=0` here overrides that and every popup asks again |
+
+## Agent profiles
+
+Use `herdr plugin action invoke herdr-beams.profiles` to choose a profile in a
+popup. The existing `agent` entry keeps its legacy behavior unless
+`BEAM_AGENT_PROFILE` is set. For a direct hotkey, use `command = "herdr-beams.claude"`
+or `command = "herdr-beams.codex"` with `type = "plugin_action"`. These open the
+usual Beam/workspace/prompt popup without a profile question.
+
+Bundled examples in [profiles/defaults.json](profiles/defaults.json):
+
+| Profile | Harness | Example model ID | Effort | Approval | Sandbox |
+|---|---|---|---|---|---|
+| `claude-opus` | Claude Code | `claude-opus-5` | high | bypass | harness default |
+| `claude-sonnet` | Claude Code | `claude-sonnet-5` | medium | bypass | harness default |
+| `codex-sol` | Codex | `gpt-5.6-sol` | high | never | workspace-write |
+| `codex-terra` | Codex | `gpt-5.6-terra` | medium | on-request | workspace-write |
+
+These are examples for Claude Opus 5, Claude Sonnet 5, GPT-5.6 Sol and GPT-5.6 Terra.
+Model IDs must match your Teleport inference proxy's aliases; their availability is
+not guaranteed. The installed harness must support the selected model and flags.
+
+Create `profiles.json` under `$(herdr plugin config-dir herdr-beams)` to replace a
+bundled record or add a named profile. Records replace whole profiles; include every
+required field. Installation and upgrades never rewrite this file. For example:
+
+```json
+{
+  "claude-opus": {
+    "harness": "claude",
+    "model": "your-proxy-opus-alias",
+    "effort": "high",
+    "approval": "default"
+  },
+  "review": {
+    "harness": "codex",
+    "model": "your-proxy-codex-alias",
+    "effort": "high",
+    "approval": "on-request",
+    "sandbox": "read-only"
+  }
+}
+```
+
+Profile names use lowercase letters, digits and hyphens, starting with a letter.
+Each record requires `harness`, a nonempty `model`, `effort`, and `approval`.
+Codex also requires `sandbox`; Claude profiles must omit it. Unknown fields,
+unsupported values, malformed JSON and control characters in model IDs fail before
+any Beam or workspace is created.
+
+- Claude effort: `low`, `medium`, `high`, `max`. Approval: `default` (leave the
+  harness's permission configuration intact) or `bypass`
+  (`--dangerously-skip-permissions`).
+- Codex effort: `minimal`, `low`, `medium`, `high`, `xhigh`, passed through
+  `-c model_reasoning_effort="..."`. Approval: `default` (omit the flag),
+  `on-request`, `untrusted`, or `never`, passed through `--ask-for-approval`.
+  Sandbox: `read-only`, `workspace-write`, or `danger-full-access`, passed through
+  `--sandbox`. `never` suppresses approval requests but retains the selected sandbox.
+
+Set defaults in the plugin's `env` file:
+
+```sh
+BEAM_AGENT_PROFILE=review               # optional default for agent/new
+BEAM_CLAUDE_PROFILE=claude-sonnet        # default: claude-opus
+BEAM_CODEX_PROFILE=codex-sol             # default: codex-sol
+```
+
+An explicit `--profile` or picker selection wins over `BEAM_AGENT_PROFILE` and
+replaces legacy harness arguments for that launch. Without a profile,
+`BEAM_AGENT_KIND` and `BEAM_AGENT_ARGS` retain their defaults and whitespace-separated
+argument behavior (shell quotes inside the string are not parsed). Profile model
+strings are passed as single arguments, with no shell evaluation or glob expansion.
+
+```sh
+bash bin/beam-agent.sh --profile claude-opus <beam> implementation "Build the API"
+bash bin/beam-agent.sh --profile codex-sol <beam> review "Review the API"
+```
+
+Each launch creates a separate unfocused Herdr workspace, chooses an unused agent
+name (`claude`, `codex`, `codex-2`, ...), and installs that harness's integration
+before starting it. Claude Code and Codex can remain active on the same Beam.
+The plugin does not coordinate agents, create Git worktrees, or isolate their files;
+use distinct working directories or agree on file ownership yourself. Simultaneous
+launch requests for the same harness are not locked and can race for an agent name.
+Selected profiles and supplied workspace/prompt arguments survive the popup flow
+that first creates a Beam. Profile approval prompts may require opening the agent's
+pane; the launch popup does not wait for the agent. Harness binaries come from the
+Beam image and are not installed by the profile loader.
 
 ## Scripting and agents
 

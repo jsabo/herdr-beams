@@ -1,0 +1,6 @@
+{
+  "claude-opus": {"harness":"claude", "model":"claude-opus-5", "effort":"high", "approval":"bypass"},
+  "claude-sonnet": {"harness":"claude", "model":"claude-sonnet-5", "effort":"medium", "approval":"bypass"},
+  "codex-sol": {"harness":"codex", "model":"gpt-5.6-sol", "effort":"high", "approval":"never", "sandbox":"workspace-write"},
+  "codex-terra": {"harness":"codex", "model":"gpt-5.6-terra", "effort":"medium", "approval":"on-request", "sandbox":"workspace-write"}
+}

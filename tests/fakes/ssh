@@ -17,6 +17,11 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+if [[ "$cmd" == *"integration install"* ]] && [ -e "$FAKE_STATE/integration-fails" ]; then
+  cat >/dev/null
+  exit 1
+fi
+
 case "$cmd" in
   true)
     f="$FAKE_STATE/ssh-fail-count"
@@ -32,6 +37,7 @@ case "$cmd" in
     printf 'following: %s\n' "$cmd"
     ;;
   *"herdr\" --version"*|*"herdr --version"*)
+    cat >/dev/null
     printf 'herdr 0.0.0-fake\n'
     ;;
 esac

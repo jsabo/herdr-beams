@@ -2,16 +2,24 @@
 # Create a Beam, install herdr on it, add it to the herdr sidebar, and
 # optionally start an agent in it. Runs in a popup pane. Prints a timestamp
 # per phase so you can see where the seconds go.
-# Usage: beam-new.sh [--agent]
+# Usage: beam-new.sh [--agent] [--profile <name>]
 #   --agent  hand over to beam-agent.sh for the new Beam without asking; this
 #            is how the agent pane creates a Beam when there is none.
 cd "$(dirname "$0")/.." || exit 1
 # shellcheck disable=SC1091
 . bin/common.sh
 require_config
-then_agent=0
-[ "${1:-}" != --agent ] || then_agent=1
 header "New Beam"
+then_agent=0
+if [ "${1:-}" = --agent ]; then then_agent=1; shift; fi
+profile="${BEAM_AGENT_PROFILE:-}"
+if [ "${1:-}" = --profile ]; then
+  [ "$#" -ge 2 ] || die "--profile requires a name"
+  profile="$2"
+  shift 2
+fi
+load_agent_profile "$profile"
+BEAM_AGENT_KIND="$AGENT_KIND"
 
 # Provisioning takes about ten seconds on the server, so the Beam list the
 # reconcile needs is fetched while that runs instead of before it. This is the
@@ -62,7 +70,7 @@ show_cmd "herdr --machine $machine pane list"
 
 if [ "$then_agent" = 1 ]; then
   printf '\n'
-  exec bash bin/beam-agent.sh "$id"
+  exec bash bin/beam-agent.sh --profile "$profile" "$id" "$@"
 fi
 # The offer doubles as the close key: any key closes, y goes on to the agent.
 if interactive; then
@@ -71,7 +79,7 @@ if interactive; then
   yn=""
   ask "Start a $BEAM_AGENT_KIND agent in it now? [y/N] " yn
   case "$yn" in
-    y|Y) exec bash bin/beam-agent.sh "$id" ;;
+    y|Y) exec bash bin/beam-agent.sh --profile "$profile" "$id" ;;
   esac
 fi
 pause

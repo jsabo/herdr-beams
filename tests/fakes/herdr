@@ -50,6 +50,7 @@ case "${1:-} ${2:-}" in
     printf '{"id":"cli:agent:list","result":{"agents":%s}}\n' "$names"
     ;;
   "agent start")
+    printf '%s\0' "$@" > "$FAKE_STATE/last-agent-argv"
     printf '{"id":"cli:agent:start","result":{"agent":{"name":"%s","agent_status":"idle","pane_id":"w9:p1"},"type":"agent_started"}}\n' "$3"
     ;;
   "agent prompt")

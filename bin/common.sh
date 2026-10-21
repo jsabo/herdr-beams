@@ -20,7 +20,7 @@ BEAMS_PROXY="${BEAMS_PROXY:-}"
 BEAMS_TENANT="${BEAMS_PROXY%%:*}"
 BEAM_LOGIN="${BEAM_LOGIN:-beams}"
 BEAM_AGENT_KIND="${BEAM_AGENT_KIND:-claude}"
-BEAM_AGENT_ARGS="${BEAM_AGENT_ARGS:---dangerously-skip-permissions}"
+BEAM_AGENT_ARGS="${BEAM_AGENT_ARGS---dangerously-skip-permissions}"
 # Sidebar label prefix. herdr shows a machine as its label and nothing else, so
 # this is what tells a Beam from an ordinary SSH host in the machines rail:
 # `beam/neon-panel`, in herdr's own host/session label style. Empty for bare ids.
@@ -337,6 +337,7 @@ EOF
 # remote herdr version.
 prepare_beam() {
   local host="$1"
+  [[ "$BEAM_AGENT_KIND" =~ ^[a-zA-Z0-9_-]+$ ]] || die "invalid agent kind $BEAM_AGENT_KIND"
   # shellcheck disable=SC2016  # $HOME is meant to expand on the Beam
   beam_notes | beam_ssh "$host" '
     set -e
@@ -351,4 +352,82 @@ prepare_beam() {
     done
     "$HOME/.local/bin/herdr" --version
   '
+}
+
+# ---- agent launch profiles -------------------------------------------------
+# User records replace bundled records by name, including approval settings.
+load_profiles() {
+  local files=(profiles/defaults.json)
+  [ ! -e "$CONFIG_DIR/profiles.json" ] || files+=("$CONFIG_DIR/profiles.json")
+  AGENT_PROFILES="$(jq -es '
+    def text: type == "string" and length > 0 and (test("[\u0000-\u001f\u007f]") | not);
+    def profile:
+      type == "object" and
+      ((keys - ["harness", "model", "effort", "approval", "sandbox"]) | length == 0) and
+      (.model | text) and
+      (if .harness == "claude" then
+         (.effort as $e | ["low", "medium", "high", "max"] | index($e) != null) and
+         (.approval == "default" or .approval == "bypass") and (has("sandbox") | not)
+       elif .harness == "codex" then
+         (.effort as $e | ["minimal", "low", "medium", "high", "xhigh"] | index($e) != null) and
+         (.approval as $a | ["default", "on-request", "never", "untrusted"] | index($a) != null) and
+         (.sandbox as $s | ["read-only", "workspace-write", "danger-full-access"] | index($s) != null)
+       else false end);
+    if all(.[]; type == "object" and all(to_entries[];
+         (.key | test("^[a-z][a-z0-9-]*$")) and (.value | profile)))
+    then reduce .[] as $p ({}; . + $p)
+    else error("invalid agent profiles") end
+  ' "${files[@]}")" || die "invalid profiles; check $CONFIG_DIR/profiles.json and README profile fields"
+}
+
+# Sets a Bash argument array; profile contents are never evaluated as shell code.
+load_agent_profile() {
+  local name="${1:-}" record args arg
+  AGENT_ARGS=()
+  if [ -z "$name" ]; then
+    AGENT_KIND="$BEAM_AGENT_KIND"
+    local legacy="$BEAM_AGENT_ARGS"
+    legacy="${legacy//$'\n'/ }"
+    read -r -a AGENT_ARGS <<<"$legacy" || true
+    return
+  fi
+  load_profiles
+  record="$(jq -ce --arg p "$name" '.[$p] // empty' <<<"$AGENT_PROFILES")" \
+    || die "no agent profile named $name"
+  # shellcheck disable=SC2034  # consumed by launch scripts
+  AGENT_KIND="$(jq -r .harness <<<"$record")"
+  args="$(jq -c '
+    ["--model", .model] +
+    (if .harness == "claude" then ["--effort", .effort] +
+       (if .approval == "bypass" then ["--dangerously-skip-permissions"] else [] end)
+     else ["-c", ("model_reasoning_effort=" + (.effort | tojson)), "--sandbox", .sandbox] +
+       (if .approval == "default" then [] else ["--ask-for-approval", .approval] end)
+     end)' <<<"$record")"
+  while IFS= read -r -d '' arg; do AGENT_ARGS+=("$arg"); done < <(jq -jr '.[] + "\u0000"' <<<"$args")
+}
+
+pick_agent_profile() {
+  interactive || die "profile picker needs a terminal; pass --profile <name>"
+  load_profiles
+  local names=() name choice="" i=1
+  mapfile -t names < <(jq -r 'keys[]' <<<"$AGENT_PROFILES")
+  for name in "${names[@]}"; do
+    note "$i) $name · $(jq -r --arg p "$name" '.[$p] | [.harness, .model, .effort, .approval] | join(" · ")' <<<"$AGENT_PROFILES")"
+    i=$((i + 1))
+  done
+  hints "number select profile" "empty cancel"
+  ask "Profile: " choice
+  # shellcheck disable=SC2015  # any invalid condition cancels selection
+  [[ "$choice" =~ ^[1-9][0-9]*$ ]] && [ "${#choice}" -le 4 ] && [ "$choice" -le "${#names[@]}" ] \
+    || die "no agent profile chosen"
+  # shellcheck disable=SC2034  # returned to the launch script
+  BEAM_AGENT_PROFILE="${names[choice-1]}"
+}
+
+# Install on each launch: the Beam may have been created with another harness.
+install_agent_integration() {
+  local host="$1" kind="$2"
+  [[ "$kind" =~ ^[a-zA-Z0-9_-]+$ ]] || die "invalid agent kind $kind"
+  # shellcheck disable=SC2016  # expanded by the remote shell
+  beam_ssh "$host" '"$HOME/.local/bin/herdr" integration install '"$kind"' >/dev/null'
 }
