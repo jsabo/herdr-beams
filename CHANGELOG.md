@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.5 (unreleased)
+
+- Use provider-qualified model IDs for all bundled Claude and Codex profiles, matching the advertised inference catalog while retaining profile names and launch settings.
+
 ## 0.8.4 (unreleased)
 
 - Trust the installed Herdr Codex SessionStart hook through Codex's app-server APIs before launch, preventing first-run hook review from blocking agent registration.

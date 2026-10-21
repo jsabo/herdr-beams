@@ -9,16 +9,16 @@ profile_args() {
 @test "profiles: bundled Claude and Codex fields map to harness arguments" {
   profile_args claude-opus
   [ "$status" -eq 0 ]
-  [ "$output" = $'claude\n<--model>\n<claude-opus-5>\n<--effort>\n<high>\n<--dangerously-skip-permissions>' ]
+  [ "$output" = $'claude\n<--model>\n<anthropic.claude-opus-5>\n<--effort>\n<high>\n<--dangerously-skip-permissions>' ]
   profile_args codex-sol
   [ "$status" -eq 0 ]
-  [ "$output" = $'codex\n<--model>\n<gpt-5.6-sol>\n<-c>\n<model_reasoning_effort="high">\n<--sandbox>\n<workspace-write>\n<--ask-for-approval>\n<never>\n<-c>\n<sandbox_workspace_write.network_access=true>' ]
+  [ "$output" = $'codex\n<--model>\n<openai.gpt-5.6-sol>\n<-c>\n<model_reasoning_effort="high">\n<--sandbox>\n<workspace-write>\n<--ask-for-approval>\n<never>\n<-c>\n<sandbox_workspace_write.network_access=true>' ]
   profile_args claude-sonnet
   [ "$status" -eq 0 ]
-  [[ "$output" == *'<claude-sonnet-5>'*'<medium>'* ]]
+  [[ "$output" == *'<anthropic.claude-sonnet-5>'*'<medium>'* ]]
   profile_args codex-terra
   [ "$status" -eq 0 ]
-  [[ "$output" == *'<gpt-5.6-terra>'*'<on-request>'* ]]
+  [[ "$output" == *'<openai.gpt-5.6-terra>'*'<on-request>'* ]]
 }
 
 @test "profiles: user records replace defaults, add profiles and preserve literal model strings" {
@@ -61,14 +61,14 @@ JSON
   printf 'BEAM_AGENT_KIND=codex\nBEAM_AGENT_ARGS="--full-auto"\n' >> "$HERDR_PLUGIN_CONFIG_DIR/env"
   run_script beam-agent.sh --profile claude-sonnet alpha-one review
   [ "$status" -eq 0 ]
-  grep -q 'agent start claude --kind claude .*--model claude-sonnet-5 --effort medium --dangerously-skip-permissions$' "$FAKE_LOG"
+  grep -q 'agent start claude --kind claude .*--model anthropic.claude-sonnet-5 --effort medium --dangerously-skip-permissions$' "$FAKE_LOG"
   ! grep -q -- '--full-auto' "$FAKE_LOG"
 }
 
 @test "profiles: picker selects a profile before workspace questions and launch" {
   run_interactive beam-profiles.sh alpha-one <<<$'3\nreview\ncheck it\n'
   [ "$status" -eq 0 ]
-  [[ "$output" == *'claude-opus · claude · claude-opus-5'*'Profile:'*'Workspace label'* ]]
+  [[ "$output" == *'claude-opus · claude · anthropic.claude-opus-5'*'Profile:'*'Workspace label'* ]]
   calls_in_order 'integration install codex' 'workspace create --cwd ~ --label review --no-focus' 'agent start codex' 'agent prompt codex check it'
 }
 
@@ -92,7 +92,7 @@ JSON
   [ "$status" -eq 0 ]
   calls_in_order 'beams add' 'integration install codex' 'machine add' \
     'workspace create --cwd ~ --label review space --no-focus' \
-    'agent start codex --kind codex --pane w9:p1 -- --model gpt-5.6-terra' \
+    'agent start codex --kind codex --pane w9:p1 -- --model openai.gpt-5.6-terra' \
     'agent prompt codex read SPEC.md'
   [ "$(call_count 'beams add')" -eq 1 ]
 }
@@ -102,7 +102,7 @@ JSON
   run_bound beam-profiles.sh <<<$'4\napi\nfix it\n'
   [ "$status" -eq 0 ]
   [ "$(printf '%s' "$output" | grep -o 'Profile:' | wc -l)" -eq 1 ]
-  grep -q 'agent start codex .*--model gpt-5.6-terra' "$FAKE_LOG"
+  grep -q 'agent start codex .*--model openai.gpt-5.6-terra' "$FAKE_LOG"
 }
 
 @test "profiles: direct actions open matching popups and use configurable profiles" {
@@ -113,11 +113,11 @@ JSON
   done
   run_script beam-claude.sh alpha-one
   [ "$status" -eq 0 ]
-  grep -q 'agent start claude .*--model claude-opus-5' "$FAKE_LOG"
+  grep -q 'agent start claude .*--model anthropic.claude-opus-5' "$FAKE_LOG"
   printf 'BEAM_CODEX_PROFILE=codex-terra\n' >> "$HERDR_PLUGIN_CONFIG_DIR/env"
   run_script beam-codex.sh alpha-one
   [ "$status" -eq 0 ]
-  grep -q 'agent start codex .*--model gpt-5.6-terra' "$FAKE_LOG"
+  grep -q 'agent start codex .*--model openai.gpt-5.6-terra' "$FAKE_LOG"
 }
 
 @test "profiles: two harnesses coexist on one Beam in separate workspace launches" {
@@ -143,10 +143,10 @@ JSON
   printf 'BEAM_AGENT_PROFILE=codex-sol\n' >> "$HERDR_PLUGIN_CONFIG_DIR/env"
   run_script beam-agent.sh alpha-one
   [ "$status" -eq 0 ]
-  grep -q 'agent start codex .*--model gpt-5.6-sol' "$FAKE_LOG"
+  grep -q 'agent start codex .*--model openai.gpt-5.6-sol' "$FAKE_LOG"
   run_script beam-agent.sh --profile claude-opus alpha-one
   [ "$status" -eq 0 ]
-  grep -q 'agent start claude .*--model claude-opus-5' "$FAKE_LOG"
+  grep -q 'agent start claude .*--model anthropic.claude-opus-5' "$FAKE_LOG"
 }
 
 @test "profiles: explicit selection survives creation even with an env-file default" {
@@ -155,7 +155,7 @@ JSON
   run_bound beam-agent.sh --profile codex-sol '' api 'fix it' </dev/null
   [ "$status" -eq 0 ]
   grep -q 'integration install codex' "$FAKE_LOG"
-  grep -q 'agent start codex .*--model gpt-5.6-sol' "$FAKE_LOG"
+  grep -q 'agent start codex .*--model openai.gpt-5.6-sol' "$FAKE_LOG"
   ! grep -q 'integration install claude' "$FAKE_LOG"
 }
 
