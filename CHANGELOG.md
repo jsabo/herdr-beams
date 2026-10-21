@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.2 (unreleased)
+
+- Keep live Beams visible when deletion fails and persist partial teardown progress.
+- Replace cached Beams by ID to avoid duplicates during concurrent creation/listing.
+- Validate provisioning, workspace and agent-list responses before launching; clean up launch temporary files on failure.
+- Refresh machine registrations once after startup additions and relabeling, and report actionable registration errors.
+- Update security, local-link update instructions and plugin discovery wording.
+
 ## 0.8.1 (unreleased)
 
 - Collect provisioning results and show Beam recovery instructions when reconciliation fails.

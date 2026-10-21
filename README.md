@@ -96,6 +96,28 @@ Re-run the install command to update. To pin a release, use
 `herdr plugin install jsabo/herdr-beams --ref <release-tag>` with a tag from
 [Releases](https://github.com/jsabo/herdr-beams/releases).
 
+### Updating a locally linked plugin
+
+A plugin linked with `herdr plugin link` runs directly from its checkout. To keep
+that link, update the checkout on the branch you intend to use (usually `main`):
+
+```sh
+cd /path/to/herdr-beams
+git switch main
+git pull --ff-only
+```
+
+To switch from a local link to a GitHub installation:
+
+```sh
+herdr plugin uninstall herdr-beams
+herdr plugin install jsabo/herdr-beams
+```
+
+Keep the plugin's configuration directory to retain your settings. If installation
+says the plugin is already linked from a local path, use one of these two update
+paths.
+
 ## Quick start
 
 1. **Create a Beam:** `herdr plugin action invoke herdr-beams.new`. The popup
@@ -106,7 +128,8 @@ Re-run the install command to update. To pin a release, use
 3. **Follow the work:** watch the sidebar, then open the agent's pane to read its
    output or answer approval prompts.
 4. **Clean up:** `herdr plugin action invoke herdr-beams.rm`. Save your work first;
-   deleting a Beam removes its agents and files.
+   deleting a Beam removes its agents and files. Failed deletions retain the
+   sidebar entry so you can inspect and retry.
 
 For the default Claude launch, use `herdr plugin action invoke herdr-beams.agent`.
 When no Beams exist, this action offers to create one and continues into launch.
@@ -129,8 +152,8 @@ Run any action with `herdr plugin action invoke herdr-beams.<action>`.
 | `status` | Show sidebar registration, region, expiry, and SSH address. |
 | `services` | List `beamctl` services and optionally follow a service's logs. |
 | `publish` | Publish port 8080 through Teleport over HTTPS or TCP. |
-| `rm` | Delete one Beam and its sidebar entry. |
-| `rm-all` | Delete every Beam on the configured tenant and their sidebar entries. |
+| `rm` | Delete one Beam, then remove its sidebar entry after successful deletion. |
+| `rm-all` | Delete Beams in order, saving progress; stop on failure and retain entries for undeleted Beams. |
 | `demo` | Run the guided build-and-publish walkthrough. |
 
 Expired Beam entries are removed from the sidebar when a popup opens. Failures stay

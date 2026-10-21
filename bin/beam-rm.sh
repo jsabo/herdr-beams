@@ -17,13 +17,6 @@ if must_confirm; then
   case "$yn" in y|Y) ;; *) exit 0 ;; esac
 fi
 
-pid="$(machine_id "$id")"
-if [ -n "$pid" ]; then
-  "$HERDR" machine remove "$pid" >/dev/null
-  off "sidebar entry for $id removed"
-fi
-tshb rm "$id"
-forget_beam "$id"
-save_state
+remove_beam "$id"
 ok "removed $id"
 pause

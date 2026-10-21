@@ -72,11 +72,28 @@ fi
 # The agent list (for the name) and the workspace are independent, and each
 # is a round trip to the Beam's herdr, so both run at once.
 taken_json="$(mktemp)"
+list_pid=""
+cleanup_agent() {
+  local rc="$?"
+  trap - EXIT
+  [ -z "$list_pid" ] || wait "$list_pid" || true
+  rm -f "$taken_json"
+  finish "$rc"
+  exit "$rc"
+}
+trap cleanup_agent EXIT
 "$HERDR" --machine "$machine" agent list > "$taken_json" &
 list_pid=$!
 created="$("$HERDR" --machine "$machine" workspace create --cwd '~' --label "$label" --no-focus)"
 wait "$list_pid" || die "could not list the agents on $id"
-pane="$(jq -r .result.root_pane.pane_id <<<"$created")"
+list_pid=""
+pane="$(jq -ers '
+  if length == 1 then
+    .[0].result.root_pane.pane_id | select(type == "string" and length > 0)
+  else empty end' <<<"$created")" \
+  || die "workspace creation on $id returned no valid pane ID; inspect its workspaces before retrying"
+jq -es 'length == 1 and (.[0].result.agents | type == "array" and all(.[]; .name | type == "string" and length > 0))' "$taken_json" >/dev/null \
+  || die "invalid agent list on $id; workspace $label was created as pane $pane; inspect it before retrying"
 phase "workspace $label on $id, pane $pane"
 
 # Agent name: the kind, with a counter when that name is already taken here.

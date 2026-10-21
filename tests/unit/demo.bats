@@ -113,8 +113,8 @@ run_demo() { run env DEMO_AUTO=1 "$@" bash demo/demo.sh </dev/null; }
     "$host beamctl list"
     "$host curl -s localhost:8080"
     "tsh --proxy=example.beams.sh beams publish new-beam"
-    "herdr machine remove id-new-beam"
     "tsh --proxy=example.beams.sh beams rm new-beam"
+    "herdr machine remove id-new-beam"
   )
   last=0
   for want in "${expected[@]}"; do

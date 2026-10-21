@@ -176,3 +176,32 @@ host="beams@cccccccc-0000-4000-8000-000000000003.example.beams.sh"
   [ "$(call_count 'integration install claude')" -eq 1 ]
   grep -q 'agent start claude' "$FAKE_LOG"
 }
+
+@test "new: invalid provisioning fields fail before SSH and report a known Beam ID" {
+  for field in uuid expires; do
+    jq --arg field "$field" 'del(.[$field])' "$REPO/tests/fixtures/add.json" > "$FAKE_STATE/add.json"
+    : > "$FAKE_LOG"
+    run_script beam-new.sh
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'invalid Beam provisioning response'*'Beam new-beam exists without a sidebar entry'* ]]
+    ! grep -q '^ssh\|machine add' "$FAKE_LOG"
+    cp "$REPO/tests/fixtures/beams.json" "$FAKE_STATE/beams.json"
+  done
+}
+
+@test "new: invalid provisioning ID gives general recovery guidance before SSH" {
+  jq '.id = null' "$REPO/tests/fixtures/add.json" > "$FAKE_STATE/add.json"
+  run_script beam-new.sh
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'invalid Beam provisioning response'*'inspect tsh --proxy=example.beams.sh beams ls'* ]]
+  ! grep -q '^ssh\|machine add' "$FAKE_LOG"
+}
+
+@test "new: listing that already includes the provisioned Beam does not duplicate the cache" {
+  touch "$FAKE_STATE/ls-includes-add"
+  run_script beam-new.sh --agent
+  [ "$status" -eq 0 ]
+  jq -e 'length == 3 and ([.[] | select(.id == "new-beam")] | length == 1)' "$HERDR_PLUGIN_STATE_DIR/beams.json"
+  grep -q 'agent start claude --kind claude --pane w9:p1' "$FAKE_LOG"
+  [ "$(call_count 'beams ls -f json')" -eq 1 ]
+}

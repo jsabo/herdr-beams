@@ -200,11 +200,26 @@ beams_json() { load_lists; printf '%s' "$BEAMS_JSON"; }
 machines_json() { load_lists; printf '%s' "$MACHINES_JSON"; }
 
 # Patch the Beam cache after tsh beams add / rm, without another round trip.
-remember_beam() { BEAMS_JSON="$(jq --argjson n "$1" '. + [$n]' <<<"$(beams_json)")"; export BEAMS_JSON; }
+remember_beam() { BEAMS_JSON="$(jq --argjson n "$1" 'map(select(.id != $n.id)) + [$n]' <<<"$(beams_json)")"; export BEAMS_JSON; }
 forget_beam() { BEAMS_JSON="$(jq --arg id "$1" 'map(select(.id != $id))' <<<"$(beams_json)")"; export BEAMS_JSON; }
 
 # Record the Beams that exist, for status and for diagnosing a failed run.
 save_state() { beams_json > "$STATE_DIR/beams.json"; }
+
+# Delete the runtime before its profile: a failed tsh call must leave the
+# running Beam visible. Persist successful deletions even if profile cleanup fails.
+remove_beam() {
+  local id="$1" pid
+  pid="$(machine_id "$id")"
+  tshb rm "$id" || die "could not delete Beam $id; its sidebar entry was retained; check tsh beams ls before retrying"
+  forget_beam "$id"
+  save_state
+  if [ -n "$pid" ]; then
+    "$HERDR" machine remove "$pid" >/dev/null \
+      || die "Beam $id was deleted but profile $pid remains; run herdr machine remove $pid"
+    off "sidebar entry for $id removed"
+  fi
+}
 
 beam_uuid() { beams_json | jq -er --arg id "$1" '.[] | select(.id == $id) | .uuid'; }
 

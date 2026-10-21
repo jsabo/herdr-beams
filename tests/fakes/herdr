@@ -40,13 +40,23 @@ case "${1:-} ${2:-}" in
     printf 'Renamed SSH machine %s.\n' "$3"
     ;;
   "machine remove")
+    [ ! -e "$FAKE_STATE/machine-remove-fails" ] || exit 1
     jq --arg id "$3" 'map(select(.id != $id))' "$machines" > "$machines.tmp" && mv "$machines.tmp" "$machines"
     printf 'Removed SSH machine %s.\n' "$3"
     ;;
   "workspace create")
+    if [ -f "$FAKE_STATE/workspace-response.json" ]; then
+      cat "$FAKE_STATE/workspace-response.json"
+      exit 0
+    fi
     printf '{"id":"cli:workspace:create","result":{"root_pane":{"pane_id":"w9:p1","workspace_id":"w9"},"workspace":{"workspace_id":"w9"},"type":"workspace_created"}}\n'
     ;;
   "agent list")
+    [ ! -e "$FAKE_STATE/agent-list-fails" ] || exit 1
+    if [ -f "$FAKE_STATE/agent-list-response.json" ]; then
+      cat "$FAKE_STATE/agent-list-response.json"
+      exit 0
+    fi
     # Names in $FAKE_STATE/agent-names (one per line) are already taken.
     names='[]'
     if [ -s "$FAKE_STATE/agent-names" ]; then

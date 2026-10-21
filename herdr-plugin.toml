@@ -15,13 +15,13 @@
 
 id = "herdr-beams"
 name = "Teleport Beams"
-version = "0.8.1"
+version = "0.8.2"
 # 0.9.1 added `herdr --machine` forwarding, manifest actions, `plugin action
 # invoke` and `plugin pane open --env`, everything the scripts use (checked
 # against the 0.9.1 binary's help and the v0.9.1 source). `machine rename` is
 # older: the 0.9.0 docs (docs/versions/0.9.0, connecting-machines) describe it.
 min_herdr_version = "0.9.1"
-description = "Teleport Beams from the herdr sidebar: ephemeral, isolated runtimes for coding agents, with your identity delegated and no API keys"
+description = "Bring your agents to Teleport Beams from the herdr sidebar: trusted runtimes with delegated identity and infrastructure access without secrets"
 platforms = ["macos", "linux"]
 
 # Drop machine profiles whose Beam has expired, add profiles for Beams that exist

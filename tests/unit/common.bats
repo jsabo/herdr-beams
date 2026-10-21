@@ -323,3 +323,9 @@ SH
     grep -Fx "$expected integration install codex" "$REMOTE_LOG"
   done
 }
+
+@test "remember_beam replaces an already-listed Beam and keeps UUID lookups singular" {
+  common 'load_lists; record=$(beams_json | jq -c '\''.[] | select(.id == "alpha-one") | .region = "updated"'\''); remember_beam "$record"; beams_json | jq -e '\''length == 2 and ([.[] | select(.id == "alpha-one")] | length == 1 and .[0].region == "updated")'\''; beam_uuid alpha-one'
+  [ "$status" -eq 0 ]
+  [ "${lines[1]}" = 'aaaaaaaa-0000-4000-8000-000000000001' ]
+}

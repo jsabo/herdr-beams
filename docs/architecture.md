@@ -80,7 +80,8 @@ scripts in `bin/`, and they do exactly this:
 - **Commands it issues**: `tsh --proxy=<BEAMS_PROXY> beams ls|add|rm|publish`,
   `ssh beams@<uuid>.<tenant>` (through your SSH config, one shared connection per
   Beam), `herdr machine add|rename|remove|list`, and `herdr --machine beam/<id> …` for
-  workspaces and agents on the Beam.
+  workspaces and agents on the Beam. Deletion removes the runtime before its
+  sidebar entry, preserving access when the deletion request fails.
 - **On the Beam**: `curl -fsSL https://herdr.dev/install.sh | sh` if herdr is
   missing, `herdr integration install <selected harness>`, and a section
   `## Inside a Beam (added by herdr-beams)` appended to the Beam's `~/.claude/CLAUDE.md`

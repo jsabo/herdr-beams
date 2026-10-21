@@ -72,7 +72,9 @@ setup() { setup_fakes; }
   touch "$FAKE_STATE/machine-add-fails"
   run_script beam-reconcile.sh
   [ "$status" -eq 0 ]
-  [[ "$output" == *"beta-two has no herdr yet"* ]]
+  [[ "$output" == *"could not register beta-two"*"beam-reconcile.sh"* ]]
+  [[ "$output" == *"no compatible herdr"* ]]
+  [[ "$output" != *"run beam-agent"* ]]
 }
 
 @test "reconcile: refreshes the state file" {
@@ -97,4 +99,23 @@ setup() { setup_fakes; }
   [ "$status" -eq 0 ]
   [[ "$output" == *"BEAMS_PROXY not set"* ]]
   [ ! -s "$FAKE_LOG" ]
+}
+
+@test "reconcile: multiple additions use one final registration refresh" {
+  printf '[]' > "$FAKE_STATE/machines.json"
+  run_script beam-reconcile.sh
+  [ "$status" -eq 0 ]
+  [ "$(call_count 'machine add')" -eq 2 ]
+  [ "$(call_count 'machine list --json')" -eq 2 ]
+}
+
+@test "reconcile: relabeling plus addition uses one final registration refresh" {
+  jq 'map(select(.id != "id-gone-beam") | if .id == "id-alpha-one" then .label = "old" else . end)' \
+    "$FAKE_STATE/machines.json" > "$FAKE_STATE/m.tmp"
+  mv "$FAKE_STATE/m.tmp" "$FAKE_STATE/machines.json"
+  run_script beam-reconcile.sh
+  [ "$status" -eq 0 ]
+  [ "$(call_count 'machine rename')" -eq 1 ]
+  [ "$(call_count 'machine add')" -eq 1 ]
+  [ "$(call_count 'machine list --json')" -eq 2 ]
 }
