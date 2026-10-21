@@ -14,3 +14,14 @@ jobs:
         run: sudo apt-get update -q && sudo apt-get install -y -q bats shellcheck jq
       - name: Lint and unit tests (offline, against fake tsh, herdr and ssh)
         run: tests/run.sh
+
+  macos-bash:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install modern Bash and test dependencies
+        run: brew install bash bats-core shellcheck jq
+      - name: Test startup from macOS system Bash
+        env:
+          BASH32_BIN: /bin/bash
+        run: tests/run.sh

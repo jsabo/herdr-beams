@@ -2,6 +2,12 @@
 
 [Back to the README](../README.md)
 
+- **`mapfile: command not found` or `ids: unbound variable`.** An older plugin is
+  running with macOS system Bash 3.2. Update the plugin and install modern Bash
+  with `brew install bash`. Current versions automatically switch to Bash 4+ from
+  PATH or either standard Homebrew prefix. Custom installations must put their
+  Bash on herdr’s PATH.
+
 - **The popup closed before you could read it.** A failing popup stays open with the
   reason and `beams: failed (exit N)` until a key is pressed. If you still see nothing,
   the popup never started: look for `plugin.pane.open` in

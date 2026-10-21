@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.3 (unreleased)
+
+- Restart plugin scripts with Bash 4+ from PATH or Homebrew when herdr launches them with macOS system Bash, preserving arguments and configuration. Show an installation hint when no supported Bash is available.
+
 ## 0.8.2 (unreleased)
 
 - Keep live Beams visible when deletion fails and persist partial teardown progress.
