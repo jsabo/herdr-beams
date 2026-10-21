@@ -228,10 +228,10 @@ herdr plugin action invoke herdr-beams.profiles
 
 | Bundled profile | Harness | Example model | Effort | Approval | Sandbox |
 | --- | --- | --- | --- | --- | --- |
-| `claude-opus` | Claude Code | `claude-opus-5` | high | bypass | harness default |
-| `claude-sonnet` | Claude Code | `claude-sonnet-5` | medium | bypass | harness default |
-| `codex-sol` | Codex | `gpt-5.6-sol` | high | never | workspace-write |
-| `codex-terra` | Codex | `gpt-5.6-terra` | medium | on-request | workspace-write |
+| `claude-opus` | Claude Code | `anthropic.claude-opus-5` | high | bypass | harness default |
+| `claude-sonnet` | Claude Code | `anthropic.claude-sonnet-5` | medium | bypass | harness default |
+| `codex-sol` | Codex | `openai.gpt-5.6-sol` | high | never | workspace-write |
+| `codex-terra` | Codex | `openai.gpt-5.6-terra` | medium | on-request | workspace-write |
 
 These model IDs are examples. Replace them with aliases supported by your tenant's
 inference proxy and installed harness. Add or replace profiles in `profiles.json`

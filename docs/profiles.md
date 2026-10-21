@@ -20,10 +20,17 @@ Bundled examples in [profiles/defaults.json](../profiles/defaults.json):
 
 | Profile | Harness | Example model ID | Effort | Approval | Sandbox |
 |---|---|---|---|---|---|
-| `claude-opus` | Claude Code | `claude-opus-5` | high | bypass | harness default |
-| `claude-sonnet` | Claude Code | `claude-sonnet-5` | medium | bypass | harness default |
-| `codex-sol` | Codex | `gpt-5.6-sol` | high | never | workspace-write |
-| `codex-terra` | Codex | `gpt-5.6-terra` | medium | on-request | workspace-write |
+| `claude-opus` | Claude Code | `anthropic.claude-opus-5` | high | bypass | harness default |
+| `claude-sonnet` | Claude Code | `anthropic.claude-sonnet-5` | medium | bypass | harness default |
+| `codex-sol` | Codex | `openai.gpt-5.6-sol` | high | never | workspace-write |
+| `codex-terra` | Codex | `openai.gpt-5.6-terra` | medium | on-request | workspace-write |
+
+Bundled profiles use provider-qualified IDs advertised by compatible inference
+catalogs. Short aliases can also be valid when explicitly configured by the proxy;
+using a qualified ID does not prove which backend served a particular request.
+Verify tenant-supported names with `tctl get app_servers` (requires appropriate
+permissions), under each application's `spec.app.spec.inference.models`. A harness
+picker alone is not evidence that the proxy serves every listed model.
 
 These are examples for Claude Opus 5, Claude Sonnet 5, GPT-5.6 Sol and GPT-5.6 Terra.
 Model IDs must match your Teleport inference proxy's aliases; their availability is
@@ -31,7 +38,9 @@ not guaranteed. The installed harness must support the selected model and flags.
 
 Create `profiles.json` under `$(herdr plugin config-dir herdr-beams)` to replace a
 bundled record or add a named profile. Records replace whole profiles; include every
-required field. Installation and upgrades never rewrite this file. For example:
+required field. Installation and upgrades never rewrite this file. If you already
+override a bundled profile, update its `model` field locally to adopt a new ID.
+For example:
 
 ```json
 {
