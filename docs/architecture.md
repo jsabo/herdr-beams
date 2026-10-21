@@ -2,22 +2,20 @@
 
 [Back to the README](../README.md)
 
-Each point is a mechanism you can check, not a claim. The Beams behaviour is in the
-[Teleport Beams](https://beams.run) pages; the timings are in
-[measurements](measured.md).
+[Teleport Beams](https://beams.run) provides the runtime, infrastructure
+connectivity, and delegated identity. This plugin adds herdr launch actions,
+workspaces, and agent controls. Measurements from the tested beta, with dates and
+versions, are recorded in [measurements](measured.md).
 
-- **The agent acts as you, without your credentials.** A Beam carries a delegated
-  identity: a certificate issued for the Beam on your behalf, with a traceable link
-  back to you. `tsh` inside the Beam is already logged in, and every SSH or database
-  action it takes is attributed in the audit log to you and to the Beam's own workload
-  identity. The private key never leaves Teleport, and the Beam cannot use the identity
-  to mint new certificates for anything else. In the beta the delegated identity holds
-  your role set; the delegation model is built for the next step, where a Beam gets a
-  narrower profile for the task and an agent requests more access when it needs it,
-  with a person or a reviewing model in the loop.
-- **No API keys exist.** The Beam's environment points `ANTHROPIC_BASE_URL` and
-  `OPENAI_BASE_URL` at inference endpoints the tenant proxies; the "key" is a
-  placeholder string. Nothing to rotate, nothing to leak, usage attributed per user.
+- **Infrastructure access through delegated identity.** Beams gives the runtime
+  a Teleport-issued identity linked to its delegator. Teleport attributes activity
+  to the user and the runtime's workload identity. In the tested beta, delegation
+  inherited the user's role set. The current product site describes scoped roles
+  and reviewed execution plans; this plugin does not configure that review flow.
+- **Inference credentials stay outside the Beam.** The runtime's
+  `ANTHROPIC_BASE_URL` and `OPENAI_BASE_URL` point at tenant-proxied endpoints.
+  Teleport injects upstream credentials through its proxy, so inference API keys
+  are not stored in the Beam. Model availability depends on the tenant and harness.
 - **Services outlive sessions.** `beam-init` is the Beam's init process and `beamctl`
   its service manager. A dev server started with `beamctl start` keeps running after
   every shell closes, and an agent can start one itself.
@@ -25,7 +23,8 @@ Each point is a mechanism you can check, not a claim. The Beams behaviour is in 
   Teleport application served over HTTPS: an
   address only your login can open, with every request in the audit log. Port 8080 is
   the only port the beta publishes.
-- **Expiry is the cleanup.** Beams live 24 hours. Nothing accumulates.
+- **Check the runtime expiry.** The status action displays the expiry returned by
+  `tsh beams ls`. Save work before deletion or expiry; see the lifecycle notes below.
 
 herdr adds the part Beams do not have: one sidebar for your laptop and every Beam, an
 agent state (`working`, `blocked`, `done`) you can see and get notified about, and
@@ -36,7 +35,7 @@ every agent. Neither does the other's job.
 
 | | Teleport Beams | herdr |
 |---|---|---|
-| Sandbox, egress, 24 h lifetime | yes | no |
+| Runtime isolation and lifecycle | provided by Beams | no |
 | Identity for `tsh`: SSH nodes, databases over VNet | delegated from your login | no |
 | Inference endpoint and keys | proxied by the tenant | no |
 | Audit and session recording | yes | no |
@@ -56,6 +55,22 @@ Inside a Beam, herdr runs as a plain user process reparented to `beam-init`. It
 survives the SSH session that started it, and its panes inherit the Beam's environment,
 so the inference endpoints and the Teleport identity variables are present in every
 agent without configuration.
+
+## Runtime lifecycle and compatibility
+
+The plugin implements the `tsh beams` workflow exercised in the tested beta. It
+uses the expiry supplied by the CLI rather than setting a fixed lifetime.
+
+The [Beams CLI documentation](https://goteleport.com/docs/beams/) describes a
+24-hour beta expiry. The current [product architecture](https://www.beams.run/how-it-works.html)
+describes Phasers as persistent agent environments, with underlying Beams rotating
+every 12 hours and retaining `/home` state. These describe different lifecycle
+models; VM rotation does not imply deletion of a Phaser's retained data.
+
+This plugin does not issue `tsh phasers` commands or manage Phaser rotation,
+snapshots, forks, or execution-plan approvals. Confirm CLI and tenant compatibility
+before applying the newer product workflows. Check expiry with the plugin's
+`status` action or `tsh beams ls`, and save or push work before deletion or expiry.
 
 ## What this plugin runs on your machine
 
