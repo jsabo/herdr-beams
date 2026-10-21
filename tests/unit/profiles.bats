@@ -9,10 +9,10 @@ profile_args() {
 @test "profiles: bundled Claude and Codex fields map to harness arguments" {
   profile_args claude-opus
   [ "$status" -eq 0 ]
-  [ "$output" = $'claude\n<--model>\n<anthropic.claude-opus-5>\n<--effort>\n<high>\n<--dangerously-skip-permissions>' ]
+  [ "$output" = $'claude\n<--model>\n<anthropic.claude-opus-5>\n<--effort>\n<high>\n<--permission-mode>\n<default>' ]
   profile_args codex-sol
   [ "$status" -eq 0 ]
-  [ "$output" = $'codex\n<--model>\n<openai.gpt-5.6-sol>\n<-c>\n<model_reasoning_effort="high">\n<--sandbox>\n<workspace-write>\n<--ask-for-approval>\n<never>\n<-c>\n<sandbox_workspace_write.network_access=true>' ]
+  [ "$output" = $'codex\n<--model>\n<openai.gpt-5.6-sol>\n<-c>\n<model_reasoning_effort="high">\n<--sandbox>\n<workspace-write>\n<--ask-for-approval>\n<on-request>\n<-c>\n<sandbox_workspace_write.network_access=false>' ]
   profile_args claude-sonnet
   [ "$status" -eq 0 ]
   [[ "$output" == *'<anthropic.claude-sonnet-5>'*'<medium>'* ]]
@@ -61,7 +61,7 @@ JSON
   printf 'BEAM_AGENT_KIND=codex\nBEAM_AGENT_ARGS="--full-auto"\n' >> "$HERDR_PLUGIN_CONFIG_DIR/env"
   run_script beam-agent.sh --profile claude-sonnet alpha-one review
   [ "$status" -eq 0 ]
-  grep -q 'agent start claude --kind claude .*--model anthropic.claude-sonnet-5 --effort medium --dangerously-skip-permissions$' "$FAKE_LOG"
+  grep -q 'agent start claude --kind claude .*--model anthropic.claude-sonnet-5 --effort medium --permission-mode default$' "$FAKE_LOG"
   ! grep -q -- '--full-auto' "$FAKE_LOG"
 }
 
@@ -166,11 +166,13 @@ JSON
   [ "$status" -eq 0 ]
   argv=()
   while IFS= read -r -d '' arg; do argv+=("$arg"); done < "$FAKE_STATE/last-agent-argv"
-  [ "${#argv[@]}" -eq 12 ]
+  [ "${#argv[@]}" -eq 14 ]
   [ "${argv[8]}" = '--model' ]
   [ "${argv[9]}" = "$model" ]
   [ "${argv[10]}" = '--effort' ]
   [ "${argv[11]}" = high ]
+  [ "${argv[12]}" = --permission-mode ]
+  [ "${argv[13]}" = default ]
 }
 
 @test "profiles: legacy empty arguments keep permission prompts as documented" {
@@ -178,4 +180,34 @@ JSON
   run_script beam-agent.sh alpha-one api
   [ "$status" -eq 0 ]
   grep -q 'agent start claude --kind claude --pane w9:p1 --$' "$FAKE_LOG"
+}
+
+@test "profiles: every bundled profile asks and Codex explicitly denies sandbox networking" {
+  for profile in claude-opus claude-sonnet; do
+    profile_args "$profile"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'<--permission-mode>'*'<default>'* ]]
+    [[ "$output" != *'dangerously-skip-permissions'* ]]
+  done
+  for profile in codex-sol codex-terra; do
+    profile_args "$profile"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'<--ask-for-approval>'*'<on-request>'* ]]
+    [[ "$output" == *'<workspace-write>'*'<sandbox_workspace_write.network_access=false>'* ]]
+    [[ "$output" != *'<never>'* ]]
+  done
+}
+
+@test "profiles: explicit custom overrides can still opt into broader permissions" {
+  cat > "$HERDR_PLUGIN_CONFIG_DIR/profiles.json" <<'JSON'
+{"claude-opus":{"harness":"claude","model":"anthropic.claude-opus-5","effort":"high","approval":"bypass"},
+ "codex-sol":{"harness":"codex","model":"openai.gpt-5.6-sol","effort":"high","approval":"never","sandbox":"workspace-write","network_access":true}}
+JSON
+  profile_args claude-opus
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'<--dangerously-skip-permissions>'* ]]
+  [[ "$output" != *'--permission-mode'* ]]
+  profile_args codex-sol
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'<never>'*'<sandbox_workspace_write.network_access=true>'* ]]
 }

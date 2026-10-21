@@ -228,9 +228,9 @@ herdr plugin action invoke herdr-beams.profiles
 
 | Bundled profile | Harness | Example model | Effort | Approval | Sandbox |
 | --- | --- | --- | --- | --- | --- |
-| `claude-opus` | Claude Code | `anthropic.claude-opus-5` | high | bypass | harness default |
-| `claude-sonnet` | Claude Code | `anthropic.claude-sonnet-5` | medium | bypass | harness default |
-| `codex-sol` | Codex | `openai.gpt-5.6-sol` | high | never | workspace-write |
+| `claude-opus` | Claude Code | `anthropic.claude-opus-5` | high | default (ask) | harness default |
+| `claude-sonnet` | Claude Code | `anthropic.claude-sonnet-5` | medium | default (ask) | harness default |
+| `codex-sol` | Codex | `openai.gpt-5.6-sol` | high | on-request | workspace-write |
 | `codex-terra` | Codex | `openai.gpt-5.6-terra` | medium | on-request | workspace-write |
 
 These model IDs are examples. Replace them with aliases supported by your tenant's
@@ -261,9 +261,10 @@ Explicit selections override the default profile. With no profile, `agent` keeps
 its legacy settings: Claude Code with `--dangerously-skip-permissions` by default.
 Set `BEAM_AGENT_ARGS=""` to keep its permission prompts. Profile launches use their
 own approval settings; Codex `never` retains the selected sandbox. Bundled Codex
-profiles enable network access inside `workspace-write` so agents can reach
-Teleport resources. Custom profiles can set `"network_access": false` to keep it
-disabled, or omit the field to use Codex's configuration.
+profiles disable network access inside `workspace-write`. To let a custom Codex
+profile reach Teleport resources, set `"network_access": true`. Claude profiles
+explicitly select normal permission mode; this is not a network sandbox and
+existing Claude allow rules may still apply.
 
 Codex launches also set a process-scoped `HERDR_AGENT=codex` hint so Herdr can
 recognize Node wrappers that report their process name as `MainThread`.

@@ -1,6 +1,6 @@
 {
-  "claude-opus": {"harness":"claude", "model":"anthropic.claude-opus-5", "effort":"high", "approval":"bypass"},
-  "claude-sonnet": {"harness":"claude", "model":"anthropic.claude-sonnet-5", "effort":"medium", "approval":"bypass"},
-  "codex-sol": {"harness":"codex", "model":"openai.gpt-5.6-sol", "effort":"high", "approval":"never", "sandbox":"workspace-write", "network_access":true},
-  "codex-terra": {"harness":"codex", "model":"openai.gpt-5.6-terra", "effort":"medium", "approval":"on-request", "sandbox":"workspace-write", "network_access":true}
+  "claude-opus": {"harness":"claude", "model":"anthropic.claude-opus-5", "effort":"high", "approval":"default"},
+  "claude-sonnet": {"harness":"claude", "model":"anthropic.claude-sonnet-5", "effort":"medium", "approval":"default"},
+  "codex-sol": {"harness":"codex", "model":"openai.gpt-5.6-sol", "effort":"high", "approval":"on-request", "sandbox":"workspace-write", "network_access":false},
+  "codex-terra": {"harness":"codex", "model":"openai.gpt-5.6-terra", "effort":"medium", "approval":"on-request", "sandbox":"workspace-write", "network_access":false}
 }

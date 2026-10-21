@@ -440,7 +440,7 @@ load_agent_profile() {
   args="$(jq -c '
     ["--model", .model] +
     (if .harness == "claude" then ["--effort", .effort] +
-       (if .approval == "bypass" then ["--dangerously-skip-permissions"] else [] end)
+       (if .approval == "bypass" then ["--dangerously-skip-permissions"] else ["--permission-mode", "default"] end)
      else ["-c", ("model_reasoning_effort=" + (.effort | tojson)), "--sandbox", .sandbox] +
        (if .approval == "default" then [] else ["--ask-for-approval", .approval] end) +
        (if has("network_access") then ["-c", ("sandbox_workspace_write.network_access=" + (.network_access | tojson))] else [] end)
@@ -519,7 +519,7 @@ trust_codex_integration() (
       return 0
     done
   }
-  codex_trust_rpc 1 '{"id":1,"method":"initialize","params":{"clientInfo":{"name":"herdr-beams","version":"0.8.6"},"capabilities":{"experimentalApi":true}}}' || exit 1
+  codex_trust_rpc 1 '{"id":1,"method":"initialize","params":{"clientInfo":{"name":"herdr-beams","version":"0.8.7"},"capabilities":{"experimentalApi":true}}}' || exit 1
   printf '%s\n' '{"method":"initialized"}' >&"$input"
   codex_trust_rpc 2 '{"id":2,"method":"hooks/list","params":{"cwds":[]}}' || exit 1
   states="$(jq -ce --arg path "$home/hooks.json" --arg command "$expected" '
