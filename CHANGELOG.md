@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.6 (unreleased)
+
+- Scope `HERDR_AGENT=codex` to the launched Codex process so Node wrappers named MainThread remain detectable by Herdr. Keep normal agent startup, naming, arguments, and hook setup.
+
 ## 0.8.5 (unreleased)
 
 - Use provider-qualified model IDs for all bundled Claude and Codex profiles, matching the advertised inference catalog while retaining profile names and launch settings.
