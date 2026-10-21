@@ -36,7 +36,7 @@ case "$cmd" in
   *"beamctl logs"*)
     printf 'following: %s\n' "$cmd"
     ;;
-  *"herdr\" --version"*|*"herdr --version"*)
+  *" --version"*)
     cat >/dev/null
     printf 'herdr 0.0.0-fake\n'
     ;;

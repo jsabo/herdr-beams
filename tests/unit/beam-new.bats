@@ -32,7 +32,7 @@ host="beams@cccccccc-0000-4000-8000-000000000003.example.beams.sh"
   [ "$(call_count 'integration install claude')" -eq 1 ]
   [ "$(call_count 'grep -qs "^## Inside a Beam"')" -eq 1 ]
   [ "$(call_count '"$HOME/.claude/CLAUDE.md" "$HOME/AGENTS.md"')" -eq 1 ]
-  [ "$(call_count 'herdr" --version')" -eq 1 ]
+  [ "$(call_count ' --version')" -eq 1 ]
   # ... and the readiness probes apart, there is exactly one ssh session to the Beam
   [ "$(grep -c "^ssh .*$host " "$FAKE_LOG")" -eq $(( $(call_count "$host true") + 1 )) ]
 }
@@ -55,7 +55,7 @@ host="beams@cccccccc-0000-4000-8000-000000000003.example.beams.sh"
   run_interactive beam-new.sh <<<$'y\n\n\n'
   [ "$status" -eq 0 ]
   [[ "$output" == *"Start a claude agent in it now? [y/N]"* ]]
-  grep -q "^herdr --machine beam/new-beam workspace create --cwd ~ --label work --no-focus$" "$FAKE_LOG"
+  grep -q "^herdr --machine id-new-beam workspace create --cwd ~ --label work --no-focus$" "$FAKE_LOG"
 }
 
 @test "new: from a keybinding the offer stays, because it is also the close key" {
@@ -70,7 +70,7 @@ host="beams@cccccccc-0000-4000-8000-000000000003.example.beams.sh"
   [ "$status" -eq 0 ]
   [[ "$output" != *"Start a claude agent in it now?"* ]]
   [[ "$output" == *"Workspace label [work]:"* ]]
-  calls_in_order "herdr machine add" "herdr --machine beam/new-beam workspace create --cwd ~ --label work --no-focus" "agent start claude"
+  calls_in_order "herdr machine add" "herdr --machine id-new-beam workspace create --cwd ~ --label work --no-focus" "agent start claude"
 }
 
 @test "new: every phase line carries a timestamp" {
@@ -152,4 +152,27 @@ host="beams@cccccccc-0000-4000-8000-000000000003.example.beams.sh"
   [ "$status" -eq 1 ]
   [[ "$output" == *"set BEAMS_PROXY="* ]]
   [ ! -s "$FAKE_LOG" ]
+}
+
+@test "new: collects successful provisioning after reconciliation fails and reports recovery" {
+  touch "$FAKE_STATE/machine-list-fails"
+  run_script beam-new.sh
+  [ "$status" -ne 0 ]
+  jq -e 'any(.id == "new-beam")' "$FAKE_STATE/beams.json"
+  [[ "$output" == *'Beam new-beam exists without a sidebar entry'*'bash bin/beam-rm.sh new-beam'* ]]
+  ! grep -q '^ssh' "$FAKE_LOG"
+}
+
+@test "new: installs the integration once when handing straight to an agent" {
+  run_script beam-new.sh --agent --profile codex-sol
+  [ "$status" -eq 0 ]
+  [ "$(call_count 'integration install codex')" -eq 1 ]
+  grep -q 'agent start codex' "$FAKE_LOG"
+}
+
+@test "new: installs the integration once when accepting the agent offer" {
+  run_interactive beam-new.sh <<<$'y\n\n\n'
+  [ "$status" -eq 0 ]
+  [ "$(call_count 'integration install claude')" -eq 1 ]
+  grep -q 'agent start claude' "$FAKE_LOG"
 }

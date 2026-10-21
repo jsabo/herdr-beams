@@ -289,3 +289,37 @@ iso_from_now() {
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
+
+@test "remote Herdr: preparation and later launches use PATH or local-bin consistently" {
+  export REMOTE_HOME="$BATS_TEST_TMPDIR/remote-home"
+  export REMOTE_BIN="$BATS_TEST_TMPDIR/remote-bin"
+  export REMOTE_LOG="$BATS_TEST_TMPDIR/remote.log"
+  mkdir -p "$REMOTE_HOME/.local/bin" "$REMOTE_BIN"
+  cat > "$REMOTE_BIN/herdr" <<'SH'
+#!/bin/sh
+printf '%s %s\n' "$0" "$*" >> "$REMOTE_LOG"
+[ "$1" != --version ] || printf 'herdr test\n'
+SH
+  chmod +x "$REMOTE_BIN/herdr"
+  for location in path fallback; do
+    : > "$REMOTE_LOG"
+    if [ "$location" = fallback ]; then
+      mv "$REMOTE_BIN/herdr" "$REMOTE_HOME/.local/bin/herdr"
+      expected="$REMOTE_HOME/.local/bin/herdr"
+    else
+      expected="$REMOTE_BIN/herdr"
+    fi
+    run bash -c '
+      . bin/common.sh
+      beam_ssh() {
+        env HOME="$REMOTE_HOME" PATH="$REMOTE_BIN:/usr/bin:/bin" bash -c "${@: -1}"
+      }
+      prepare_beam example-host
+      install_agent_integration example-host codex
+    '
+    [ "$status" -eq 0 ]
+    grep -Fx "$expected integration install claude" "$REMOTE_LOG"
+    grep -Fx "$expected --version" "$REMOTE_LOG"
+    grep -Fx "$expected integration install codex" "$REMOTE_LOG"
+  done
+}

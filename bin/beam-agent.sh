@@ -18,6 +18,13 @@ cd "$(dirname "$0")/.." || exit 1
 . bin/common.sh
 require_config
 header "Start agent in a Beam"
+# Internal handoff from beam-new, scoped to this invocation, never persisted.
+prepared_harness=""
+if [ "${1:-}" = --prepared-harness ]; then
+  [ "$#" -ge 2 ] || die "--prepared-harness requires a harness"
+  prepared_harness="$2"
+  shift 2
+fi
 profile="${BEAM_AGENT_PROFILE:-}"
 case "${1:-}" in
   --profile) [ "$#" -ge 2 ] || die "usage: beam-agent.sh --profile <name> [beam-id] [workspace] [prompt]"; profile="$2"; shift 2 ;;
@@ -39,7 +46,10 @@ if [ -z "${1:-}" ] && [ "$(beams_json | jq 'length')" -eq 0 ] && interactive; th
 fi
 
 id="$(pick_beam "${1:-}")"
-machine="$(machine_label "$id")"
+profile_id="$(machine_id "$id")"
+[ -n "$profile_id" ] || die "Beam $id has no sidebar entry; install herdr on it and run bash bin/beam-reconcile.sh"
+# A profile ID survives label changes and avoids ambiguous labels.
+machine="$profile_id"
 label="${2:-}"
 shift $(( $# > 2 ? 2 : $# ))
 prompt="$*"
@@ -53,9 +63,11 @@ if [ -z "$prompt" ] && interactive; then
   ask "First prompt (empty for none): " prompt
 fi
 
-busy "installing $AGENT_KIND integration on $id"
-install_agent_integration "$(beam_host "$(beam_uuid "$id")")" "$AGENT_KIND" \
-  || die "could not install $AGENT_KIND integration on $id"
+if [ "$prepared_harness" != "$AGENT_KIND" ]; then
+  busy "installing $AGENT_KIND integration on $id"
+  install_agent_integration "$(beam_host "$(beam_uuid "$id")")" "$AGENT_KIND" \
+    || die "could not install $AGENT_KIND integration on $id"
+fi
 
 # The agent list (for the name) and the workspace are independent, and each
 # is a round trip to the Beam's herdr, so both run at once.

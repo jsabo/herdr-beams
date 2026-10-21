@@ -342,15 +342,19 @@ prepare_beam() {
   beam_notes | beam_ssh "$host" '
     set -e
     notes="$(cat)"
-    if ! command -v herdr >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/herdr" ]; then
-      curl -fsSL https://herdr.dev/install.sh | sh >/dev/null
+    herdr_bin="$(command -v herdr || true)"
+    if [ -z "$herdr_bin" ]; then
+      herdr_bin="$HOME/.local/bin/herdr"
+      if [ ! -x "$herdr_bin" ]; then
+        curl -fsSL https://herdr.dev/install.sh | sh >/dev/null
+      fi
     fi
-    "$HOME/.local/bin/herdr" integration install '"$BEAM_AGENT_KIND"' >/dev/null
+    "$herdr_bin" integration install '"$BEAM_AGENT_KIND"' >/dev/null
     mkdir -p "$HOME/.claude"
     for f in "$HOME/.claude/CLAUDE.md" "$HOME/AGENTS.md"; do
       grep -qs "^## Inside a Beam" "$f" || printf "%s\n" "$notes" >> "$f"
     done
-    "$HOME/.local/bin/herdr" --version
+    "$herdr_bin" --version
   '
 }
 
@@ -429,5 +433,8 @@ install_agent_integration() {
   local host="$1" kind="$2"
   [[ "$kind" =~ ^[a-zA-Z0-9_-]+$ ]] || die "invalid agent kind $kind"
   # shellcheck disable=SC2016  # expanded by the remote shell
-  beam_ssh "$host" '"$HOME/.local/bin/herdr" integration install '"$kind"' >/dev/null'
+  beam_ssh "$host" '
+    herdr_bin="$(command -v herdr || true)"
+    [ -n "$herdr_bin" ] || herdr_bin="$HOME/.local/bin/herdr"
+    "$herdr_bin" integration install '"$kind"' >/dev/null'
 }

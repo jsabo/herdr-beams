@@ -60,8 +60,10 @@ setup() { setup_fakes; }
   command -v shellcheck >/dev/null || skip "shellcheck not installed"
   run shellcheck bin/*.sh demo/*.sh tests/fakes/* tests/run.sh
   [ "$status" -eq 0 ]
-  run bash -n bin/*.sh demo/*.sh
-  [ "$status" -eq 0 ]
+  for script in bin/*.sh demo/*.sh tests/fakes/* tests/run.sh; do
+    run bash -n "$script"
+    [ "$status" -eq 0 ]
+  done
 }
 
 @test "scripts: every script sources common.sh and enforces the config" {
