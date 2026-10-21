@@ -2,6 +2,13 @@
 
 [Back to the README](../README.md)
 
+The README's [configuration guide](../README.md#configuration) explains what to
+create and where. This reference covers profile fields and runtime behavior.
+Bundled profiles live at `profiles/defaults.json` inside the installed plugin;
+your optional `profiles.json` lives beside `env` in the directory returned by
+`herdr plugin config-dir herdr-beams`. Both configuration files are user-created;
+installation supplies the bundled profiles and preserves user configuration.
+
 ## Supported harnesses
 
 The profile loader supports `claude` (Claude Code) and `codex`. These agents come
@@ -122,27 +129,9 @@ bypass. This mode is not network isolation: existing tool allow rules and sandbo
 settings still apply. The Codex network switch restricts sandboxed agent commands;
 model inference still needs connectivity. Existing sessions keep their settings.
 
-Create `profiles.json` in the plugin configuration directory to opt into broader
-permissions. Records replace the complete bundled profile by name. For example:
-
-```json
-{
-  "codex-sol": {
-    "harness": "codex",
-    "model": "openai.gpt-5.6-sol",
-    "effort": "high",
-    "approval": "never",
-    "sandbox": "workspace-write",
-    "network_access": true
-  },
-  "claude-opus": {
-    "harness": "claude",
-    "model": "anthropic.claude-opus-5",
-    "effort": "high",
-    "approval": "bypass"
-  }
-}
-```
+For step-by-step file creation, copyable Claude/Codex YOLO profiles, and selecting
+defaults for each action, see the README's [Configuration](../README.md#configuration).
+YOLO examples use new names, so bundled prompt-based choices remain available.
 
 The legacy unprofiled `agent` action still uses `BEAM_AGENT_ARGS` from `env`. Set
 `BEAM_AGENT_PROFILE=claude-opus` there to use the bundled prompt-based profile;

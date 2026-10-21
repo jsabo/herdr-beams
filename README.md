@@ -91,7 +91,12 @@ ${EDITOR:-vi} "$beams_config_dir/env"
 
 ```sh
 BEAMS_PROXY=<tenant>.beams.sh
+BEAM_AGENT_PROFILE=claude-opus
 ```
+
+The plugin supplies four profiles. You create `env` yourself; a custom
+`profiles.json` is optional. See [Configuration](#configuration) for file locations,
+profile defaults, overrides, and Claude/Codex YOLO examples.
 
 Re-run the install command to update. To pin a release, use
 `herdr plugin install jsabo/herdr-beams --ref <release-tag>` with a tag from
@@ -200,89 +205,220 @@ Running `herdr plugin action invoke ...` from a local shell reaches the local se
 
 ## Configuration
 
-`$(herdr plugin config-dir herdr-beams)/env` is sourced by every script:
+### Where settings live
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `BEAMS_PROXY` | required | your tenant, `<name>.beams.sh` |
-| `BEAM_LOGIN` | `beams` | SSH login on the Beam |
-| `BEAM_AGENT_KIND` | `claude` | herdr agent kind started by `agent` and whose integration `new` installs; the Beam image ships `claude` and `codex`, any other kind needs its CLI installed on the Beam first |
-| `BEAM_AGENT_ARGS` | `--dangerously-skip-permissions` | arguments passed to the agent binary; quote more than one, for example `BEAM_AGENT_ARGS="--dangerously-skip-permissions --model opus"` to override the model the Beam image pins |
-| `BEAMS_YES` | unset | the actions set it to `1` so a keybinding deletes or creates without a y/N question; `BEAMS_YES=0` here overrides that and every popup asks again |
+Run this on your laptop to find the configuration directory:
 
-Settings are read whenever a popup opens; no reload is needed. Use
-`BEAM_LABEL_PREFIX` (default `beam/`) to customize sidebar labels. Launches resolve
-existing profiles by the Beam UUID, so manual renames and prefix changes do not
-prevent an agent from starting.
+```sh
+herdr plugin config-dir herdr-beams
+```
 
-### Agent profiles
+By default it is `~/.config/herdr/plugins/config/herdr-beams` on macOS and Linux
+(unless your XDG configuration location differs). Use the command's output as the
+authoritative path.
 
-Profiles currently accept `claude` and `codex` harnesses. Installing another agent
-in a Beam does not add it to the profile picker; run it from the Beam's shell.
+| File | Location | Who creates it? | What to edit |
+| --- | --- | --- | --- |
+| `env` | Configuration directory | You, during setup | Tenant and default profile choices |
+| `profiles.json` | Configuration directory | You, optionally | Additional profiles or replacements for bundled profiles |
+| `profiles/defaults.json` | Installed plugin checkout | Supplied with the plugin | View only; updates replace it |
 
-Choose a profile interactively:
+You do not need a custom `profiles.json` to use the four bundled profiles.
+Multiple GitHub installation directories can remain after updates; edit the
+configuration directory rather than any installation checkout. Plugin updates
+preserve your `env` and custom `profiles.json`.
+
+### Recommended starting configuration
+
+Create or edit `env`:
+
+```sh
+beams_config_dir="$(herdr plugin config-dir herdr-beams)"
+mkdir -p "$beams_config_dir"
+${EDITOR:-vi} "$beams_config_dir/env"
+```
+
+For profile-based launches, use this minimal content, replacing the tenant:
+
+```sh
+BEAMS_PROXY=<tenant>.beams.sh
+BEAM_AGENT_PROFILE=claude-opus
+```
+
+If migrating from an older setup, remove `BEAM_AGENT_KIND` and `BEAM_AGENT_ARGS`
+from this file when you no longer need legacy launches. In particular, remove old
+`--dangerously-skip-permissions` arguments. `BEAM_AGENT_PROFILE` selects the profile
+for the generic `agent` action and the agent offered after `new`; dedicated
+Claude/Codex actions have their own defaults below.
+
+`env` is a Bash file sourced by the plugin. Use `NAME=value` assignments and quote
+values containing spaces. Keep this file on your laptop, not inside a Beam.
+
+### Choose a bundled profile
+
+Select **Local** in herdr, then open the picker with **Prefix → A** if you installed
+[the example binding](#keybindings), or run this from your local shell:
 
 ```sh
 herdr plugin action invoke herdr-beams.profiles
 ```
 
-| Bundled profile | Harness | Example model | Effort | Approval | Sandbox |
-| --- | --- | --- | --- | --- | --- |
-| `claude-opus` | Claude Code | `anthropic.claude-opus-5` | high | default (ask) | harness default |
-| `claude-sonnet` | Claude Code | `anthropic.claude-sonnet-5` | medium | default (ask) | harness default |
-| `codex-sol` | Codex | `openai.gpt-5.6-sol` | high | on-request | workspace-write |
-| `codex-terra` | Codex | `openai.gpt-5.6-terra` | medium | on-request | workspace-write |
+| Profile | Model | Effort | Permissions | Agent command networking |
+| --- | --- | --- | --- | --- |
+| `claude-opus` | `anthropic.claude-opus-5` | high | Normal Claude permission prompts | Controlled by Claude settings |
+| `claude-sonnet` | `anthropic.claude-sonnet-5` | medium | Normal Claude permission prompts | Controlled by Claude settings |
+| `codex-sol` | `openai.gpt-5.6-sol` | high | On-request approval; workspace-write sandbox | Disabled in the sandbox |
+| `codex-terra` | `openai.gpt-5.6-terra` | medium | On-request approval; workspace-write sandbox | Disabled in the sandbox |
 
-These model IDs are examples. Replace them with aliases supported by your tenant's
-inference proxy and installed harness. Add or replace profiles in `profiles.json`
-in the same configuration directory as `env`:
+Claude's normal permission mode is not network isolation; existing Claude allow
+rules still apply. Codex's network setting restricts sandboxed commands, not the
+connection used for model inference. Approval modes ask when the harness requires
+approval, rather than before every action.
+
+These model IDs must be supported by your tenant's inference proxy. See the
+[profile reference](docs/profiles.md) for model verification and all field values.
+Profiles support `claude` and `codex`; other installed harnesses can run from a
+Beam shell but do not automatically appear in this picker.
+
+### Add custom Claude and Codex YOLO profiles
+
+Create the optional file yourself:
+
+```sh
+beams_config_dir="$(herdr plugin config-dir herdr-beams)"
+${EDITOR:-vi} "$beams_config_dir/profiles.json"
+```
+
+For a new file, paste this complete JSON. If the file already exists, add these
+entries inside its existing outer object instead of replacing your other profiles:
 
 ```json
 {
-  "review": {
-    "harness": "codex",
-    "model": "your-proxy-codex-alias",
+  "claude-yolo": {
+    "harness": "claude",
+    "model": "anthropic.claude-opus-5",
     "effort": "high",
-    "approval": "on-request",
-    "sandbox": "read-only"
+    "approval": "bypass"
+  },
+  "codex-yolo": {
+    "harness": "codex",
+    "model": "openai.gpt-5.6-sol",
+    "effort": "high",
+    "approval": "never",
+    "sandbox": "danger-full-access"
   }
 }
 ```
 
-Set defaults in `env`:
+Save the file (in Vim: **Esc**, `:wq`, **Enter**). These choices are added to the
+picker alongside the bundled profiles; merely creating them does not change your
+default launch profile.
 
-```sh
-BEAM_AGENT_PROFILE=review
-BEAM_CLAUDE_PROFILE=claude-sonnet
-BEAM_CODEX_PROFILE=codex-sol
+`claude-yolo` bypasses Claude permission prompts. `codex-yolo` suppresses approvals
+and disables Codex's own file/network sandbox; external Beam and Teleport controls
+still apply. Omit `network_access` with `danger-full-access`: that profile field is
+only valid with `workspace-write`.
+
+For Codex without prompts but with the workspace sandbox retained, use
+`"approval": "never"`, `"sandbox": "workspace-write"`, and
+`"network_access": true` instead. `never` alone does not disable the sandbox or
+enable network access.
+
+### Override an existing profile
+
+Custom records are combined with the bundled profiles by name:
+
+- A new name, such as `claude-yolo`, adds a choice.
+- An existing name, such as `codex-sol`, replaces that entire bundled record.
+  Include every required field; individual fields are not merged.
+- Remove a custom replacement to restore that profile's bundled settings on the
+  next launch. Updates never rewrite your custom replacements.
+
+For example, put this record in `profiles.json` to keep Codex Sol's prompts and
+workspace sandbox while allowing its commands to reach Teleport and repositories:
+
+```json
+{
+  "codex-sol": {
+    "harness": "codex",
+    "model": "openai.gpt-5.6-sol",
+    "effort": "high",
+    "approval": "on-request",
+    "sandbox": "workspace-write",
+    "network_access": true
+  }
+}
 ```
 
-Explicit selections override the default profile. With no profile, `agent` keeps
-its legacy settings: Claude Code with `--dangerously-skip-permissions` by default.
-Set `BEAM_AGENT_ARGS=""` to keep its permission prompts. Profile launches use their
-own approval settings; Codex `never` retains the selected sandbox. Bundled Codex
-profiles disable network access inside `workspace-write`. To let a custom Codex
-profile reach Teleport resources, set `"network_access": true`. Claude profiles
-explicitly select normal permission mode; this is not a network sandbox and
-existing Claude allow rules may still apply.
+### Set the default for each action
 
-Codex launches also set a process-scoped `HERDR_AGENT=codex` hint so Herdr can
-recognize Node wrappers that report their process name as `MainThread`.
+Edit `env` to select any bundled or custom profile by its exact name:
 
-Before Codex starts, the plugin registers trust for the exact Herdr `SessionStart`
-hook it installed. Other hooks retain their existing trust settings. This requires
-Codex's `hooks/list` and `config/batchWrite` app-server APIs; setup errors stop the
-launch before a workspace is created.
+| Variable | Default when unset | Used by |
+| --- | --- | --- |
+| `BEAM_AGENT_PROFILE` | No profile; legacy settings below | Generic `agent` action and the agent offered after `new` |
+| `BEAM_CLAUDE_PROFILE` | `claude-opus` | Dedicated `claude` action |
+| `BEAM_CODEX_PROFILE` | `codex-sol` | Dedicated `codex` action |
 
-See the [profile reference](docs/profiles.md) for overrides, supported values,
-validation, and command-line examples.
+After creating the YOLO profiles above, this optional configuration makes them the
+action defaults:
+
+```sh
+BEAMS_PROXY=<tenant>.beams.sh
+BEAM_AGENT_PROFILE=claude-yolo
+BEAM_CLAUDE_PROFILE=claude-yolo
+BEAM_CODEX_PROFILE=codex-yolo
+```
+
+Leave the recommended defaults in place if you prefer to choose YOLO only from
+the picker. A picker choice or explicit `--profile` selects that launch's profile
+instead of `BEAM_AGENT_PROFILE`; profile launches do not append `BEAM_AGENT_ARGS`.
+Use a Claude profile for `BEAM_CLAUDE_PROFILE` and a Codex profile for
+`BEAM_CODEX_PROFILE`.
+
+### Apply and check changes
+
+No reload is needed for `env` or `profiles.json`: each new popup reads them.
+Existing agents keep their launch settings; start a new agent to use changes.
+Herdr keybinding edits separately require `herdr server reload-config`.
+
+```sh
+beams_config_dir="$(herdr plugin config-dir herdr-beams)"
+cat "$beams_config_dir/env"
+# Optional: validate your custom file's JSON syntax.
+jq empty "$beams_config_dir/profiles.json"
+herdr plugin action invoke herdr-beams.profiles
+```
+
+The picker also validates profile fields. Keep one JSON object with no comments or
+trailing commas. The [profile reference](docs/profiles.md) lists supported values.
+
+### Other settings and legacy launches
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `BEAMS_PROXY` | Required | Tenant, `<tenant>.beams.sh` |
+| `BEAM_LOGIN` | `beams` | SSH login on the Beam |
+| `BEAM_LABEL_PREFIX` | `beam/` | Sidebar label prefix; existing registrations are resolved by UUID |
+| `BEAMS_YES` | Unset | Keybinding actions set `1` to skip their create/delete confirmations; set `0` in `env` to retain those confirmations |
+| `BEAM_AGENT_KIND` | `claude` | Legacy harness when no profile is selected |
+| `BEAM_AGENT_ARGS` | `--dangerously-skip-permissions` | Legacy whitespace-separated arguments when no profile is selected |
+
+For new setups, select `BEAM_AGENT_PROFILE` instead of using legacy arguments.
+An unprofiled launch still defaults to Claude permission bypass; set
+`BEAM_AGENT_ARGS=""` to retain prompts if deliberately using that legacy mode.
+Plugin create/delete confirmations are separate from agent permission prompts.
+
+Codex launches use a process-scoped detection hint and register trust for the
+installed Herdr `SessionStart` hook. Other hooks keep their own trust settings.
+See [troubleshooting](docs/troubleshooting.md) if Codex setup or detection fails.
 
 ## Scripting and demos
 
 From a checkout, launch an agent without interactive questions:
 
 ```sh
-bash bin/beam-agent.sh --profile review <beam-id> review "Review the API" </dev/null
+bash bin/beam-agent.sh --profile codex-sol <beam-id> review "Review the API" </dev/null
 ```
 
 Drive a running agent with herdr:
