@@ -4,11 +4,16 @@
 [![herdr 0.9.1+](https://img.shields.io/badge/herdr-0.9.1%2B-8b5cf6)](https://herdr.dev)
 [![license Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-**Launch Claude Code and Codex in Teleport Beams, one keybinding away.**
+**Your agents. Your infrastructure. Teleport Beams in herdr.**
 
-A [herdr](https://herdr.dev) plugin that brings [Teleport Beams](https://beams.run)
-into your terminal sidebar. Create an isolated microVM, start a coding agent, and
-follow its progress alongside your local workspaces.
+Launch Claude Code and Codex in [Teleport Beams](https://beams.run) directly from
+the [herdr](https://herdr.dev) sidebar. Beams provides trusted runtimes with
+delegated identity and infrastructure access without secrets. This plugin adds
+workspace creation, per-launch agent profiles, and agent status alongside your
+local work.
+
+Create a runtime, choose your agent and model, send a task, and follow its progress
+without leaving herdr.
 
 [Install](#install) · [Quick start](#quick-start) · [Actions](#actions) ·
 [Configuration](#configuration) · [Troubleshooting](docs/troubleshooting.md) ·
@@ -16,21 +21,25 @@ follow its progress alongside your local workspaces.
 
 ## Why Beams + herdr?
 
-- **Your infrastructure, your identity.** Beams delegates your Teleport identity
-  into the runtime, with access governed by Teleport roles and attributed in its
-  audit log.
-- **Inference without managing API keys.** Agents use the tenant's inference
-  proxy and model aliases.
+- **Your infrastructure, your identity.** Beams connects agents to infrastructure
+  through delegated Teleport identity, with access governed by Teleport roles and
+  attributed in its audit log.
+- **Your choice of agent and model.** The plugin launches Claude Code or Codex with
+  named model, effort, approval, and sandbox settings. Agents use the tenant's
+  inference proxy; supported models depend on its aliases and the installed harness.
 - **Every agent in one sidebar.** herdr shows agent activity and completion across
   your laptop and Beams; open an agent's pane whenever you need it.
-- **Choose the harness per task.** Launch Claude Code or Codex with named model,
-  effort, approval, and sandbox profiles.
+- **Isolated execution.** Beams runs workloads in microVMs, separating agent
+  execution from your laptop. Teleport handles runtime identity and connectivity;
+  this plugin handles launch and workspace controls.
 - **Build, serve, and share.** Keep a development service running with `beamctl`
   and publish port 8080 through Teleport.
-- **Automatic expiry.** Beams expire after 24 hours, or you can delete them sooner.
-  Save or push work you want to keep before teardown.
 
-See [how it works](docs/architecture.md) for identity, runtime, and security details.
+Check the expiry shown by `herdr plugin action invoke herdr-beams.status` and save
+or push work you want to keep before deleting a runtime.
+
+See [how it works](docs/architecture.md) for identity, runtime, security, and the
+supported CLI workflow.
 
 ## Requirements
 
@@ -157,7 +166,6 @@ Running `herdr plugin action invoke ...` from a local shell reaches the local se
 
 ## Configuration
 
-
 `$(herdr plugin config-dir herdr-beams)/env` is sourced by every script:
 
 | Variable | Default | Meaning |
@@ -244,15 +252,18 @@ Recorded timings and versions are in [measurements](docs/measured.md).
 
 ## Limitations and security
 
-- Beams expire after 24 hours. Publishing supports port 8080 and one app per Beam.
+- This plugin uses `tsh beams`; it does not expose Phaser creation, rotation,
+  snapshots, or access-request review. See [compatibility](docs/architecture.md#runtime-lifecycle-and-compatibility).
+- Check runtime expiry in `status`. Save work before deleting a Beam. Publishing
+  supports port 8080 and one app per Beam in the tested workflow.
 - Separate agent workspaces share files. The plugin does not create Git worktrees
   or coordinate concurrent edits; use distinct directories or agree on ownership.
 - Concurrent launches of the same harness can race for an agent name.
 - Approval prompts may need attention in the agent pane. The plugin installs
   harness integrations, not agent binaries.
-- Delegated identities cannot reissue certificates. Use plain database clients
-  over VNet for supported engines; `tsh db connect` and `tsh kube login` are not
-  available inside a Beam. See [architecture](docs/architecture.md).
+- In the tested beta, delegated identities cannot reissue certificates. Use plain
+  database clients over VNet for supported engines; `tsh db connect` and
+  `tsh kube login` fail in that environment. See [architecture](docs/architecture.md).
 - The plugin runs as your local user and installs herdr remotely when needed.
   Review [SECURITY.md](SECURITY.md) and the scripts before installing.
 
@@ -278,7 +289,8 @@ herdr plugin action invoke herdr-beams.rm-all
 herdr plugin uninstall herdr-beams
 ```
 
-Remaining Beams expire on their own. Remove leftover sidebar entries with
+Check the expiry of any remaining Beams with `tsh beams ls`. Remove leftover
+sidebar entries with
 `herdr machine remove <profile-id>`. To delete saved settings, get their path with
 `herdr plugin config-dir herdr-beams` and remove that directory.
 
