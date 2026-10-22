@@ -147,6 +147,55 @@ agents launched by the `agent` pane:
   `--source` accepts ASCII letters, digits, colon, dot, underscore and hyphen, up
   to 80 characters (`src/app/api_helpers.rs:210-226`).
 
+## What the sidebar can show, and herdr's own defaults (read 2026-10-22, herdr 0.9.5)
+
+- **The shipped row layouts**, which this plugin's README now follows:
+  agents `[["state_icon", "machine", "workspace", "tab"], ["agent"]]`, with
+  `claude` overridden to put `terminal_title_stripped` between those two rows;
+  spaces `[["state_icon", "workspace"], ["branch", "git_status"]]`
+  (`src/config/sidebar.rs:440-476`, and `herdr --default-config`). The location
+  goes on the first row and the agent under it, which is what keeps a long
+  machine label from pushing the rest out of view.
+- **Agent row tokens**: `state_icon`, `state_text`, `machine`, `workspace`,
+  `tab`, `pane`, `agent`, `terminal_title`, `terminal_title_stripped`, plus
+  `$name` for a token reported on the **pane**.
+- **Space row tokens**: `state_icon`, `state_text`, `workspace`, `branch`,
+  `git_status`, plus `$name` for a token reported on the **workspace**. There is
+  no agent token: `SpaceTokenContext` carries no agent name, kind or list
+  (`src/ui/sidebar/tokens.rs:124-131`), and a space row's `state_text` is always
+  one of `working|blocked|done|idle|unknown`. Naming what runs in a workspace is
+  therefore only possible through a reported token, which is what
+  `herdr workspace report-metadata --token agent=<name>` is for.
+- **A pane token never reaches the machines rail** and a workspace token never
+  reaches an agent row: the two stores are separate
+  (`src/app/api/workspaces.rs:301-303` versus `src/app/api/panes.rs:1701`).
+- The `machine` token is absent whenever the client has one endpoint, so it costs
+  nothing until a Beam exists; with a Beam present herdr fills it with `Local`
+  for laptop agents, which the `{ equals = "Local", hide = true }` rule drops.
+- Token limits: a reported value is trimmed to 80 characters, keys are
+  `[A-Za-z0-9_-]` up to 32 characters, 16 keys per report and 32 per resource
+  (`src/app/api_helpers.rs:205-275`). Tokens do not survive a server restart.
+
+## Glyphs for the harnesses (2026-10-22)
+
+Parsed `MesloLGMDZNerdFontMono-Regular.ttf` (the terminal's font) on this Mac:
+13,084 codepoints, every standard Nerd Font set complete (Material Design
+6896/6896, Font Awesome 768/768, Devicons 198/198, Seti 185/185, Font Logos
+118/118, Codicons 439/447). Searched all 12,855 named glyphs in its `post` table
+for `openai|anthropic|claude|gpt|copilot|robot|brain|sparkle|chat`:
+
+- **No OpenAI or Anthropic logo exists.** The nearest are `cod-copilot`
+  (U+EC1E, a different vendor), `cod-sparkle` (U+EC10), `fa-robot` (U+EE0D),
+  `md-robot` (U+F06A9) and `fa-brain` (U+EE9C) — stand-ins nobody reads as the
+  brand.
+- **Each tool's own mark exists but does not pay for itself.** Claude Code puts
+  `✳` (U+2733, present, and plain Unicode) in the terminal title it sets, and
+  Codex's header mark is `>_`. Tried on the live sidebar: a mark on the identity
+  line costs a glyph plus a ` · ` separator, four columns, and pushed
+  `beam/retro-rover` into `beam/re…` on exactly the rows that carried one — to
+  say what the agent name (`claude-2`, `codex-2`) already says, since the plugin
+  names agents after their harness. Reverted; the row carries no mark.
+
 ## The delegated identity
 
 - It is refreshed in the background: `tsh status` inside a Beam showed `Valid until`

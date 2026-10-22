@@ -514,23 +514,60 @@ The hint also clears the pane, so a Codex pane and a Claude pane read the same:
 Codex draws inline and would otherwise leave the shell prompt and the whole launch
 command above its header, where Claude Code clears the screen itself.
 
-Every launch also reports the harness's own name — `Claude Code`, `OpenAI Codex`,
-or the agent kind for anything else — as a pane token called `harness`. Add a row
-to your sidebar to show it, which gives a Codex row the third line a Claude row
-gets from its live terminal title:
+### What the sidebar shows
+
+Workspace labels are unique per Beam, so a second launch with the same label
+becomes `work-2` rather than a row that reads the same as the first. Each launch
+also names its agent on its workspace, as a token called `agent`, because a space
+row has no agent token of its own: its vocabulary is `state_icon`, `state_text`,
+`workspace`, `branch` and `git_status`. That token is what lets the machines rail
+say what is running where.
+
+herdr's own defaults put the location on the first row and the agent under it,
+which is what keeps a long machine label from pushing everything else out of view.
+This layout follows them, adds the plugin's token to the machines rail, and hides
+two things that say nothing: the `Local` machine label, and Claude Code's terminal
+title while it still reads `Claude Code`.
 
 ```toml
 [ui.sidebar.agents]
 rows = [
-  ["state_icon", "workspace", "agent"],
-  ["state_text"],
-  [{ token = "$harness", dim = true }],
+  ["state_icon", "workspace", "tab"],
+  [{ token = "machine", rules = [{ equals = "Local", hide = true }] }, "agent"],
+]
+
+[ui.sidebar.agents.rows_by_agent]
+claude = [
+  ["state_icon", "workspace", "tab"],
+  [{ token = "terminal_title_stripped", dim = true, rules = [{ equals = "Claude Code", hide = true }] }],
+  [{ token = "machine", rules = [{ equals = "Local", hide = true }] }, "agent"],
+]
+
+[ui.sidebar.spaces]
+rows = [
+  ["state_icon", "workspace", { token = "$agent", dim = true }],
+  ["branch", "git_status"],
 ]
 ```
 
+It reads:
+
+```
+machines                      agents
+▾ beam/retro-rover            ○ work · claude-2
+  ○ work · claude-2             reviewing the API
+  ○ work-2 · codex              beam/retro-rover · claude-2
+```
+
 The `$` is herdr's marker for a token a plugin reported rather than one of its own;
-the reported name carries no `$`. The row disappears for an agent that reports
-nothing, so it is safe for agents you start by hand.
+the reported name carries no `$`. A token with no value drops itself and its
+separator, and a row whose tokens all drop out disappears, so agents you start by
+hand still render and an idle Claude loses its title line.
+
+A mark instead of the agent's name is not worth the column: see
+[Glyphs for the harnesses](docs/measured.md) — Nerd Fonts carries no OpenAI or
+Anthropic logo, and the stand-ins cost a glyph plus a separator to say what the
+agent name (`claude`, `codex-2`) already says.
 
 ## Scripting and demos
 

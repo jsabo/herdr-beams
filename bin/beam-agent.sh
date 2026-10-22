@@ -91,24 +91,34 @@ if [ "$AGENT_KIND" = codex ]; then
     || die "could not prepare Codex hook trust on $id; no agent was launched"
 fi
 
-# The agent list (for the name) and the workspace are independent, and each
-# is a round trip to the Beam's herdr, so both run at once.
+# The agent list (for the name), the workspace list (for the label) and the
+# workspace itself are independent, and each is a round trip to the Beam's
+# herdr, so all three run at once. The create cannot wait for the listing that
+# decides its label without serialising two of them (docs/measured.md), so a
+# label already in use is corrected by a rename below instead.
 taken_json="$(mktemp)"
+spaces_json="$(mktemp)"
 list_pid=""
+spaces_pid=""
 cleanup_agent() {
   local rc="$?"
   trap - EXIT
   [ -z "$list_pid" ] || wait "$list_pid" || true
-  rm -f "$taken_json"
+  [ -z "$spaces_pid" ] || wait "$spaces_pid" || true
+  rm -f "$taken_json" "$spaces_json"
   finish "$rc"
   exit "$rc"
 }
 trap cleanup_agent EXIT
 herdr_at "$machine" agent list > "$taken_json" &
 list_pid=$!
+herdr_at "$machine" workspace list > "$spaces_json" &
+spaces_pid=$!
 created="$(herdr_at "$machine" workspace create --cwd '~' --label "$label" --no-focus)"
 wait "$list_pid" || die "could not list the agents on $id"
 list_pid=""
+wait "$spaces_pid" || die "could not list the workspaces on $id"
+spaces_pid=""
 pane="$(jq -ers '
   if length == 1 then
     .[0].result.root_pane.pane_id | select(type == "string" and length > 0)
@@ -116,6 +126,30 @@ pane="$(jq -ers '
   || die "workspace creation on $id returned no valid pane ID; inspect its workspaces before retrying"
 jq -es 'length == 1 and (.[0].result.agents | type == "array" and all(.[]; .name | type == "string" and length > 0))' "$taken_json" >/dev/null \
   || die "invalid agent list on $id; workspace $label was created as pane $pane; inspect it before retrying"
+
+# Two workspaces with the same label are indistinguishable in the sidebar, so a
+# repeat takes the next free -<n>, the way the agent name does below. The
+# workspace is renamed rather than created with the free label, because the
+# listing that decides it arrives alongside the create. `workspace rename`
+# takes the label positionally, unlike `machine rename` in beam-reconcile.sh.
+workspace="$(jq -ers '
+  if length == 1 then
+    .[0].result.root_pane.workspace_id | select(type == "string" and length > 0)
+  else empty end' <<<"$created")" \
+  || die "workspace creation on $id returned no valid workspace ID; inspect its workspaces before retrying"
+rename_pid=""
+if [ -n "$(jq -r --arg l "$label" '.result.workspaces[]? | select(.label == $l) | .label' "$spaces_json")" ]; then
+  taken_labels="$(jq -r '.result.workspaces[]?.label' "$spaces_json")"
+  unique="$label"
+  n=2
+  while grep -qxF "$unique" <<<"$taken_labels"; do
+    unique="$label-$n"
+    n=$((n + 1))
+  done
+  herdr_at "$machine" workspace rename "$workspace" "$unique" >/dev/null 2>&1 &
+  rename_pid=$!
+  label="$unique"
+fi
 phase "workspace $label on $id, pane $pane"
 
 # Agent name: the kind, with a counter when that name is already taken here.
@@ -147,21 +181,17 @@ fi
 herdr_at "$machine" agent start "$agent" --kind "$AGENT_KIND" --pane "$pane" -- "${AGENT_ARGS[@]}" >/dev/null
 phase "$AGENT_KIND is ready as agent $agent"
 
-# The harness's own name, for a sidebar row to show. A row template reads it as
-# `{ token = "harness" }` (herdr resolves an unknown token name from the pane's
-# reported tokens). Claude Code sets a terminal title herdr can show instead;
-# Codex leaves the shell's, so without this its row has nothing where Claude's
-# has a line. Display-only: a failure must not touch a running agent.
+# Which agent is in this workspace, for the machines rail to show. A space row
+# has no agent token at all — its vocabulary is state_icon, state_text,
+# workspace, branch and git_status — so the only herdr-native way to name what
+# is running in a workspace is a token the plugin reports on it, read back as
+# `{ token = "$agent" }` (herdr docs, configuration.mdx "Sidebar row layouts").
+# Display-only: a failure must not touch a running agent.
 #
-# The label and the first prompt are independent calls to the Beam's herdr, so
-# they run at once (docs/measured.md: about 0.9 s each when forwarded).
-case "$AGENT_KIND" in
-  claude) harness="Claude Code" ;;
-  codex)  harness="OpenAI Codex" ;;
-  *)      harness="$AGENT_KIND" ;;
-esac
-herdr_at "$machine" pane report-metadata "$pane" \
-  --source herdr-beams --token "harness=$harness" >/dev/null 2>&1 &
+# This and the first prompt are independent calls to the Beam's herdr, so they
+# run at once (docs/measured.md: about 0.9 s each when forwarded).
+herdr_at "$machine" workspace report-metadata "$workspace" \
+  --source herdr-beams --token "agent=$agent" >/dev/null 2>&1 &
 label_pid=$!
 
 if [ -n "$prompt" ]; then
@@ -169,7 +199,8 @@ if [ -n "$prompt" ]; then
   phase "prompt sent; the agent list shows $agent as working"
 fi
 
-wait "$label_pid" || off "could not label $agent as $harness in the sidebar"
+wait "$label_pid" || off "could not name $agent in the machines rail"
+[ -z "$rename_pid" ] || wait "$rename_pid" || off "workspace $label kept the label it was created with"
 
 printf '\n'
 card_open "$id · $label · $agent"

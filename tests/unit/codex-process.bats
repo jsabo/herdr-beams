@@ -39,22 +39,22 @@ CODEX
   [ "$output" = '^[[H^[[2J^[[3J' ]
 }
 
-@test "codex process: reports the harness name a row can show, after the launch" {
+@test "codex process: names the agent on its workspace, after the launch" {
   run_script beam-codex.sh alpha-one review
   [ "$status" -eq 0 ]
-  # A sidebar row reads this as { token = "harness" }. It is the name Codex puts
-  # in its own header; Codex sets no terminal title for herdr to show instead.
+  # A space row has no agent token, so the machines rail can only name what is
+  # running here from a token the plugin reports: { token = "$agent" }.
   calls_in_order 'agent start codex' \
-    'pane report-metadata w9:p1 --source herdr-beams --token harness=OpenAI Codex'
-  # it does not touch the agent name, which is what the row's first line shows
+    'workspace report-metadata w9 --source herdr-beams --token agent=codex'
+  # display-only: it never touches the agent name herdr detected
   ! grep -q 'display-agent' "$FAKE_LOG"
 }
 
-@test "codex process: a failed sidebar label leaves the agent running" {
+@test "codex process: a failed workspace label leaves the agent running" {
   touch "$FAKE_STATE/report-metadata-fails"
   run_script beam-codex.sh alpha-one review
   [ "$status" -eq 0 ]
-  [[ "$output" == *'could not label codex as OpenAI Codex'* ]]
+  [[ "$output" == *'could not name codex in the machines rail'* ]]
   grep -q 'agent start codex' "$FAKE_LOG"
 }
 
@@ -71,6 +71,6 @@ CODEX
   [ "$status" -eq 0 ]
   ! grep -q 'pane run\|HERDR_AGENT' "$FAKE_LOG"
   grep -q 'agent start claude' "$FAKE_LOG"
-  # every harness reports its name; Claude's row shows its live title instead
-  grep -q 'pane report-metadata w9:p1 --source herdr-beams --token harness=Claude Code' "$FAKE_LOG"
+  # every launch names its agent on its workspace, for the machines rail
+  grep -q 'workspace report-metadata w9 --source herdr-beams --token agent=claude' "$FAKE_LOG"
 }

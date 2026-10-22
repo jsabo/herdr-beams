@@ -44,6 +44,22 @@ case "${1:-} ${2:-}" in
     jq --arg id "$3" 'map(select(.id != $id))' "$machines" > "$machines.tmp" && mv "$machines.tmp" "$machines"
     printf 'Removed SSH machine %s.\n' "$3"
     ;;
+  "workspace list")
+    [ ! -e "$FAKE_STATE/workspace-list-fails" ] || exit 1
+    cat "$FAKE_STATE/workspaces.json"
+    ;;
+  "workspace rename")
+    # herdr workspace rename <workspace-id> <label...>: the label is positional,
+    # unlike machine rename, which takes --label.
+    [ ! -e "$FAKE_STATE/workspace-rename-fails" ] || exit 1
+    [ "$#" -ge 4 ] || { echo "usage: herdr workspace rename <workspace-id> <label>" >&2; exit 1; }
+    jq --arg id "$3" --arg l "${*:4}" 'if .result.workspaces | any(.workspace_id == $id)
+        then .result.workspaces |= map(if .workspace_id == $id then .label = $l else . end)
+        else .result.workspaces += [{ workspace_id: $id, label: $l }] end' \
+      "$FAKE_STATE/workspaces.json" > "$FAKE_STATE/workspaces.tmp" \
+      && mv "$FAKE_STATE/workspaces.tmp" "$FAKE_STATE/workspaces.json"
+    printf '{"id":"cli:workspace:rename","result":{"type":"ok"}}\n'
+    ;;
   "workspace create")
     if [ -f "$FAKE_STATE/workspace-response.json" ]; then
       cat "$FAKE_STATE/workspace-response.json"
@@ -70,9 +86,9 @@ case "${1:-} ${2:-}" in
     printf '%s' "$4" > "$FAKE_STATE/last-pane-command"
     printf '{"result":{}}\n'
     ;;
-  "pane report-metadata")
+  "workspace report-metadata")
     [ ! -e "$FAKE_STATE/report-metadata-fails" ] || exit 1
-    printf '{"id":"cli:pane:report-metadata","result":{}}\n'
+    printf '{"id":"cli:workspace:report-metadata","result":{}}\n'
     ;;
   "agent start")
     printf '%s\0' "$@" > "$FAKE_STATE/last-agent-argv"
