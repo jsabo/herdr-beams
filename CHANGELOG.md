@@ -6,6 +6,8 @@
 - Make the single-Beam entrypoints act on the Beam they run in. `agent`, `profiles`, `claude`, `codex`, `status`, `services` and `publish` use the Beam's own herdr with no `--machine` and no SSH hop, run `beamctl` locally, and read which Beam they are in from `BEAM_SELF_ID` and `BEAM_SELF_UUID` in the Beam's settings.
 - Keep `new`, `rm`, `rm-all`, `keys` and `demo` on the laptop, where your Teleport login and the machines rail are. Run on a Beam they say so and change nothing.
 - Give the keys one rule: the prefix, then Shift and the first letter of the thing (`Shift+B`eam, `Shift+C`laude, `Shift+O`penAI, `Shift+A`gent, `Shift+S`tatus, `Shift+L`ogs, `Shift+E`xpose, `Shift+K`ill, `Shift+Q`uit). All nine avoid herdr's own defaults, because a custom command claims its key first and the colliding default is dropped silently. `config/beam-keys.toml` is the block a Beam gets and the block the README recommends on the laptop.
+- Make a Codex pane read like a Claude pane: the detection hint now clears the pane before Codex starts, since Codex draws inline and left the shell prompt and launch command above its header while Claude Code clears the screen itself.
+- Report the harness's own name (`Claude Code`, `OpenAI Codex`, else the agent kind) as a pane token called `harness`, so a sidebar row `[{ token = "$harness", dim = true }]` gives every agent the third line Claude Code gets from its live terminal title. The report runs alongside the first prompt and never fails a running agent.
 - Report a failed publish instead of exiting on `tsh`'s status alone, and name the laptop when the refusal may be the Beam's delegated identity.
 
 ## 0.8.7 (unreleased)
