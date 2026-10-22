@@ -1,0 +1,8 @@
+{
+  "id": "cli:workspace:list",
+  "result": {
+    "workspaces": [
+      { "workspace_id": "w1", "label": "~" }
+    ]
+  }
+}

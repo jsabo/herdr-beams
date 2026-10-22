@@ -532,6 +532,14 @@ The `$` is herdr's marker for a token a plugin reported rather than one of its o
 the reported name carries no `$`. The row disappears for an agent that reports
 nothing, so it is safe for agents you start by hand.
 
+A mark instead of the word is not worth the column: see
+[Glyphs for the harnesses](docs/measured.md) — Nerd Fonts carries no OpenAI or
+Anthropic logo, and the stand-ins cost a glyph plus a separator to say what the
+agent name (`claude`, `codex-2`) already says.
+
+Workspace labels are made unique per Beam, so a second launch with the same label
+becomes `work-2` rather than a second row that reads the same as the first.
+
 ## Scripting and demos
 
 From a checkout, launch an agent without interactive questions:

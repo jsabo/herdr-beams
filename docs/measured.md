@@ -147,6 +147,26 @@ agents launched by the `agent` pane:
   `--source` accepts ASCII letters, digits, colon, dot, underscore and hyphen, up
   to 80 characters (`src/app/api_helpers.rs:210-226`).
 
+## Glyphs for the harnesses (2026-10-22)
+
+Parsed `MesloLGMDZNerdFontMono-Regular.ttf` (the terminal's font) on this Mac:
+13,084 codepoints, every standard Nerd Font set complete (Material Design
+6896/6896, Font Awesome 768/768, Devicons 198/198, Seti 185/185, Font Logos
+118/118, Codicons 439/447). Searched all 12,855 named glyphs in its `post` table
+for `openai|anthropic|claude|gpt|copilot|robot|brain|sparkle|chat`:
+
+- **No OpenAI or Anthropic logo exists.** The nearest are `cod-copilot`
+  (U+EC1E, a different vendor), `cod-sparkle` (U+EC10), `fa-robot` (U+EE0D),
+  `md-robot` (U+F06A9) and `fa-brain` (U+EE9C) — stand-ins nobody reads as the
+  brand.
+- **Each tool's own mark exists but does not pay for itself.** Claude Code puts
+  `✳` (U+2733, present, and plain Unicode) in the terminal title it sets, and
+  Codex's header mark is `>_`. Tried on the live sidebar: a mark on the identity
+  line costs a glyph plus a ` · ` separator, four columns, and pushed
+  `beam/retro-rover` into `beam/re…` on exactly the rows that carried one — to
+  say what the agent name (`claude-2`, `codex-2`) already says, since the plugin
+  names agents after their harness. Reverted; the row carries no mark.
+
 ## The delegated identity
 
 - It is refreshed in the background: `tsh status` inside a Beam showed `Valid until`

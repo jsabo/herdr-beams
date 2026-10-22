@@ -289,3 +289,66 @@ setup() { setup_fakes; }
   [ "$(call_count 'pane report-metadata')" -eq 1 ]
   [ "$(call_count 'agent prompt claude go')" -eq 1 ]
 }
+
+# ---- workspace labels ------------------------------------------------------
+
+@test "agent: a first launch keeps the label it asked for, with no rename" {
+  run_script beam-agent.sh alpha-one api
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"workspace api on alpha-one, pane w9:p1"* ]]
+  grep -q -- "workspace create --cwd ~ --label api --no-focus" "$FAKE_LOG"
+  [ "$(call_count 'workspace rename')" -eq 0 ]
+}
+
+@test "agent: a label already in use takes the next free number" {
+  # two workspaces called work are indistinguishable in the sidebar
+  jq '.result.workspaces += [{workspace_id: "w2", label: "work"}]' \
+    "$FAKE_STATE/workspaces.json" > "$FAKE_STATE/w.tmp" && mv "$FAKE_STATE/w.tmp" "$FAKE_STATE/workspaces.json"
+  run_script beam-agent.sh alpha-one
+  [ "$status" -eq 0 ]
+  # created as asked, then renamed; the create cannot wait for the listing
+  calls_in_order 'workspace create --cwd ~ --label work --no-focus' 'workspace rename w9 work-2'
+  [[ "$output" == *"workspace work-2 on alpha-one"* ]]
+  [[ "$output" == *"alpha-one · work-2 · claude"* ]]
+}
+
+@test "agent: it skips a number that is already taken too" {
+  jq '.result.workspaces += [{workspace_id: "w2", label: "work"}, {workspace_id: "w3", label: "work-2"}]' \
+    "$FAKE_STATE/workspaces.json" > "$FAKE_STATE/w.tmp" && mv "$FAKE_STATE/w.tmp" "$FAKE_STATE/workspaces.json"
+  run_script beam-agent.sh alpha-one
+  [ "$status" -eq 0 ]
+  grep -q 'workspace rename w9 work-3' "$FAKE_LOG"
+}
+
+@test "agent: an explicit label is uniquified too" {
+  jq '.result.workspaces += [{workspace_id: "w2", label: "api"}]' \
+    "$FAKE_STATE/workspaces.json" > "$FAKE_STATE/w.tmp" && mv "$FAKE_STATE/w.tmp" "$FAKE_STATE/workspaces.json"
+  run_script beam-agent.sh alpha-one api
+  [ "$status" -eq 0 ]
+  grep -q 'workspace rename w9 api-2' "$FAKE_LOG"
+}
+
+@test "agent: the workspace list and the create run at once" {
+  run_script beam-agent.sh alpha-one api
+  [ "$status" -eq 0 ]
+  [ "$(call_count 'workspace list')" -eq 1 ]
+  [ "$(call_count 'agent list')" -eq 1 ]
+}
+
+@test "agent: a failed rename leaves the agent running and says so" {
+  jq '.result.workspaces += [{workspace_id: "w2", label: "work"}]' \
+    "$FAKE_STATE/workspaces.json" > "$FAKE_STATE/w.tmp" && mv "$FAKE_STATE/w.tmp" "$FAKE_STATE/workspaces.json"
+  touch "$FAKE_STATE/workspace-rename-fails"
+  run_script beam-agent.sh alpha-one
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"kept the label it was created with"* ]]
+  grep -q 'agent start claude' "$FAKE_LOG"
+}
+
+@test "agent: an unreachable workspace list fails before the agent starts" {
+  touch "$FAKE_STATE/workspace-list-fails"
+  run_script beam-agent.sh alpha-one api
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"could not list the workspaces on alpha-one"* ]]
+  ! grep -q 'agent start' "$FAKE_LOG"
+}
