@@ -70,6 +70,10 @@ case "${1:-} ${2:-}" in
     printf '%s' "$4" > "$FAKE_STATE/last-pane-command"
     printf '{"result":{}}\n'
     ;;
+  "pane report-metadata")
+    [ ! -e "$FAKE_STATE/report-metadata-fails" ] || exit 1
+    printf '{"id":"cli:pane:report-metadata","result":{}}\n'
+    ;;
   "agent start")
     printf '%s\0' "$@" > "$FAKE_STATE/last-agent-argv"
     printf '{"id":"cli:agent:start","result":{"agent":{"name":"%s","agent_status":"idle","pane_id":"w9:p1"},"type":"agent_started"}}\n' "$3"

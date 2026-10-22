@@ -274,3 +274,18 @@ setup() { setup_fakes; }
   [ "$status" -eq 0 ]
   grep -q "^herdr agent start claude --kind claude --pane w9:p1 -- --model " "$FAKE_LOG"
 }
+
+@test "agent: an unknown harness reports its kind as the sidebar label" {
+  printf 'BEAMS_PROXY=example.beams.sh\nBEAM_AGENT_KIND=gemini\n' > "$HERDR_PLUGIN_CONFIG_DIR/env"
+  run_script beam-agent.sh alpha-one api
+  [ "$status" -eq 0 ]
+  grep -q 'pane report-metadata w9:p1 --source herdr-beams --token harness=gemini' "$FAKE_LOG"
+}
+
+@test "agent: the label and the first prompt run at once" {
+  run_script beam-agent.sh alpha-one api 'go'
+  [ "$status" -eq 0 ]
+  # both happen; the order between them is not fixed, so assert only that
+  [ "$(call_count 'pane report-metadata')" -eq 1 ]
+  [ "$(call_count 'agent prompt claude go')" -eq 1 ]
+}

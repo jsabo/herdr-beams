@@ -131,19 +131,45 @@ done
 # Linux Node wrappers can expose only "MainThread" to process detection. Install
 # a one-use shell shim in this fresh pane: only the actual Codex process inherits
 # the hint, and the shim removes itself before running the executable.
+#
+# The shim also clears the pane, because Codex draws inline and would leave the
+# shell prompt and the whole launch command above its own header, where Claude
+# Code starts with a cleared screen (both read back with `pane read`,
+# docs/measured.md). It has to be the escape sequence and not `clear`: a herdr
+# pane runs with TERM=xterm-ghostty, which the Beam image has no terminfo entry
+# for, so `clear` writes "unknown terminal type" instead of clearing.
 if [ "$AGENT_KIND" = codex ]; then
   herdr_at "$machine" pane run "$pane" \
-    'codex() { unset -f codex; HERDR_AGENT=codex command codex "$@"; }' >/dev/null \
+    'codex() { unset -f codex; printf "\033[H\033[2J\033[3J"; HERDR_AGENT=codex command codex "$@"; }' >/dev/null \
     || die "could not prepare Codex process detection in pane $pane; no agent was launched"
 fi
 
 herdr_at "$machine" agent start "$agent" --kind "$AGENT_KIND" --pane "$pane" -- "${AGENT_ARGS[@]}" >/dev/null
 phase "$AGENT_KIND is ready as agent $agent"
 
+# The harness's own name, for a sidebar row to show. A row template reads it as
+# `{ token = "harness" }` (herdr resolves an unknown token name from the pane's
+# reported tokens). Claude Code sets a terminal title herdr can show instead;
+# Codex leaves the shell's, so without this its row has nothing where Claude's
+# has a line. Display-only: a failure must not touch a running agent.
+#
+# The label and the first prompt are independent calls to the Beam's herdr, so
+# they run at once (docs/measured.md: about 0.9 s each when forwarded).
+case "$AGENT_KIND" in
+  claude) harness="Claude Code" ;;
+  codex)  harness="OpenAI Codex" ;;
+  *)      harness="$AGENT_KIND" ;;
+esac
+herdr_at "$machine" pane report-metadata "$pane" \
+  --source herdr-beams --token "harness=$harness" >/dev/null 2>&1 &
+label_pid=$!
+
 if [ -n "$prompt" ]; then
   herdr_at "$machine" agent prompt "$agent" "$prompt" >/dev/null
   phase "prompt sent; the agent list shows $agent as working"
 fi
+
+wait "$label_pid" || off "could not label $agent as $harness in the sidebar"
 
 printf '\n'
 card_open "$id · $label · $agent"

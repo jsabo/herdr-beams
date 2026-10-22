@@ -510,6 +510,28 @@ Codex launches use a process-scoped detection hint and register trust for the
 installed Herdr `SessionStart` hook. Other hooks keep their own trust settings.
 See [troubleshooting](docs/troubleshooting.md) if Codex setup or detection fails.
 
+The hint also clears the pane, so a Codex pane and a Claude pane read the same:
+Codex draws inline and would otherwise leave the shell prompt and the whole launch
+command above its header, where Claude Code clears the screen itself.
+
+Every launch also reports the harness's own name — `Claude Code`, `OpenAI Codex`,
+or the agent kind for anything else — as a pane token called `harness`. Add a row
+to your sidebar to show it, which gives a Codex row the third line a Claude row
+gets from its live terminal title:
+
+```toml
+[ui.sidebar.agents]
+rows = [
+  ["state_icon", "workspace", "agent"],
+  ["state_text"],
+  [{ token = "$harness", dim = true }],
+]
+```
+
+The `$` is herdr's marker for a token a plugin reported rather than one of its own;
+the reported name carries no `$`. The row disappears for an agent that reports
+nothing, so it is safe for agents you start by hand.
+
 ## Scripting and demos
 
 From a checkout, launch an agent without interactive questions:

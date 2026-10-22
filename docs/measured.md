@@ -111,6 +111,42 @@ one readiness probe plus one session.
   agent's header reads `Opus 5` through the Beam's proxied endpoint, over the Sonnet
   pin in the image's `settings.json`.
 
+## What a launched agent leaves on screen (2026-10-22)
+
+Read back with `herdr --machine beam/<id> pane read <pane>` on a live Beam, both
+agents launched by the `agent` pane:
+
+- **Claude Code clears the screen when it starts.** Its pane's visible buffer
+  begins at the `Claude Code v2.1.258` banner: the shell prompt and the launch
+  command `agent start` typed are gone.
+- **Codex draws inline and keeps them.** Its pane showed two prompt lines, the
+  detection hint and then `codex --model ... --sandbox workspace-write
+  --ask-for-approval on-request -c sandbox_workspace_write.network_access=false`,
+  above its own header box. 0.9.0 clears the pane from inside the hint so the two
+  match.
+- **`clear` cannot do that clearing.** A herdr pane runs with
+  `TERM=xterm-ghostty` (`src/pane.rs:72,105`), and the Beam image's Debian has no
+  terminfo entry for it: `TERM=xterm-ghostty clear` on the Beam prints
+  `'xterm-ghostty': unknown terminal type.` and clears nothing. The hint writes
+  the escape sequence instead.
+- **The agent row's third line is the user's row config, not a herdr detection.**
+  Measured on the live Beam: Claude Code sets a terminal title (`✳ Claude Code`,
+  then its current task), Codex leaves the shell's (`beams`). A row template
+  showing `terminal_title_stripped` therefore reads well for Claude and badly for
+  Codex, and `display_agent` is the wrong field to reach for: it feeds the row's
+  *first* line, where the agent name goes
+  (`src/client/shell/agent_sidebar.rs:275-280`), and setting it replaced `codex`
+  with a truncated `OpenAI C…`.
+- **A plugin-reported token is the field that works.**
+  `herdr pane report-metadata --source herdr-beams --token harness=...` sets it,
+  a row reads it as `{ token = "$harness" }`, and herdr resolves an unknown token
+  name from the pane's reported tokens (`src/ui/sidebar/tokens.rs:107-112`). The
+  `$` is required in the config and absent from the reported name
+  (`src/config/sidebar.rs:228-241`); without it `herdr config check` fails with
+  "custom tokens must start with `$`" and falls back to the default rows.
+  `--source` accepts ASCII letters, digits, colon, dot, underscore and hyphen, up
+  to 80 characters (`src/app/api_helpers.rs:210-226`).
+
 ## The delegated identity
 
 - It is refreshed in the background: `tsh status` inside a Beam showed `Valid until`
