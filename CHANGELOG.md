@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0 (unreleased)
+
+- Make the keybindings work while a Beam is the selected machine. herdr rebuilds the live keymap from the selected machine's own server on every switch, so each Beam now gets this plugin and a key block in its own herdr config: `new` installs both before the Beam's herdr server starts, the startup hook does it for Beams it registers, and the new `keys` action does it for a Beam created earlier.
+- Make the single-Beam entrypoints act on the Beam they run in. `agent`, `profiles`, `claude`, `codex`, `status`, `services` and `publish` use the Beam's own herdr with no `--machine` and no SSH hop, run `beamctl` locally, and read which Beam they are in from `BEAM_SELF_ID` and `BEAM_SELF_UUID` in the Beam's settings.
+- Keep `new`, `rm`, `rm-all`, `keys` and `demo` on the laptop, where your Teleport login and the machines rail are. Run on a Beam they say so and change nothing.
+- Give the keys one rule: the prefix, then Shift and the first letter of the thing (`Shift+B`eam, `Shift+C`laude, `Shift+O`penAI, `Shift+A`gent, `Shift+S`tatus, `Shift+L`ogs, `Shift+E`xpose, `Shift+K`ill, `Shift+Q`uit). All nine avoid herdr's own defaults, because a custom command claims its key first and the colliding default is dropped silently. `config/beam-keys.toml` is the block a Beam gets and the block the README recommends on the laptop.
+- Report a failed publish instead of exiting on `tsh`'s status alone, and name the laptop when the refusal may be the Beam's delegated identity.
+
 ## 0.8.7 (unreleased)
 
 - Default bundled Claude profiles to explicit normal permission mode and bundled Codex profiles to on-request approvals with sandbox network access disabled. Keep broader permissions available through custom profiles and document the legacy env path and Claude network-isolation limits.

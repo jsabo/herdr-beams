@@ -10,6 +10,7 @@ cd "$(dirname "$0")/.." || exit 1
 . bin/common.sh
 require_config
 header "New Beam"
+laptop_only "the New Beam pane"
 then_agent=0
 if [ "${1:-}" = --agent ]; then then_agent=1; shift; fi
 profile="${BEAM_AGENT_PROFILE:-}"
@@ -73,6 +74,18 @@ phase "SSH up"
 
 version="$(prepare_beam "$host")"
 phase "$version installed, $BEAM_AGENT_KIND integration and Beam notes in place"
+
+# The plugin and its key block go on before `machine add`, which is what starts
+# the Beam's herdr server: the server then reads a config that already has the
+# keys, so nothing has to be reloaded. A Beam without them is still a usable
+# Beam, so a failure here is reported and the Beam is still registered.
+busy "installing the plugin on the Beam so its keys work there too"
+if install_beam_keys "$host" "$id" "$uuid" >/dev/null; then
+  phase "the Beams keys will work while $id is the selected machine"
+else
+  bad "could not install the plugin on $id; the Beams keys will not work while it is selected"
+  note "retry with: herdr plugin action invoke herdr-beams.keys"
+fi
 
 # herdr's own discovery and server start on the Beam; about five seconds.
 busy "starting herdr's server on the Beam"

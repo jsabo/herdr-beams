@@ -119,3 +119,34 @@ setup() { setup_fakes; }
   [ "$(call_count 'machine add')" -eq 1 ]
   [ "$(call_count 'machine list --json')" -eq 2 ]
 }
+
+@test "reconcile: a Beam it registers also gets the plugin and its keys, before the add" {
+  run_script beam-reconcile.sh
+  [ "$status" -eq 0 ]
+  # beta-two has no profile, so it may also predate the Beam-side keys. The
+  # install goes first: `machine add` starts the Beam's herdr server, and the
+  # server reads its config once, at startup.
+  calls_in_order \
+    "beams@bbbbbbbb-0000-4000-8000-000000000002.example.beams.sh beams_env=" \
+    "herdr machine add ssh://beams@bbbbbbbb-0000-4000-8000-000000000002.example.beams.sh"
+  [ "$(call_count 'plugin config-dir herdr-beams')" -eq 1 ]
+}
+
+@test "reconcile: a Beam that already has a profile is left alone, with no ssh at all" {
+  jq 'map(select(.id != "id-gone-beam")) + [{id: "id-beta-two", label: "beam/beta-two",
+      target: "ssh://beams@bbbbbbbb-0000-4000-8000-000000000002.example.beams.sh",
+      session: "default", enabled: true, selected: false}]' \
+    "$FAKE_STATE/machines.json" > "$FAKE_STATE/m.tmp" && mv "$FAKE_STATE/m.tmp" "$FAKE_STATE/machines.json"
+  run_script beam-reconcile.sh
+  [ "$status" -eq 0 ]
+  ! grep -q "^ssh" "$FAKE_LOG"
+  [ "$(call_count 'machine add')" -eq 0 ]
+}
+
+@test "reconcile: a Beam that will not take the plugin is still registered" {
+  touch "$FAKE_STATE/keys-setup-fails"
+  run_script beam-reconcile.sh
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"could not install the plugin on beta-two"* ]]
+  grep -q "^herdr machine add ssh://beams@bbbbbbbb-0000-4000-8000-000000000002.example.beams.sh --label beam/beta-two$" "$FAKE_LOG"
+}

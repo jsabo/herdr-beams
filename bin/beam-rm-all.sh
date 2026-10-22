@@ -9,6 +9,7 @@ cd "$(dirname "$0")/.." || exit 1
 . bin/common.sh
 require_config
 header "Remove every Beam"
+laptop_only "the Remove every Beam pane"
 quick_reconcile
 
 mapfile -t ids < <(beams_json | jq -r '.[].id')

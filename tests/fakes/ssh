@@ -22,6 +22,13 @@ if [[ "$cmd" == *"integration install"* ]] && [ -e "$FAKE_STATE/integration-fail
   exit 1
 fi
 
+# The Beam-side setup program (plugin, settings and key block). The fake does
+# not run it; beam-keys.bats runs it against a sandbox HOME instead.
+if [[ "$cmd" == *"plugin config-dir herdr-beams"* ]]; then
+  [ ! -e "$FAKE_STATE/keys-setup-fails" ] || { echo "fake ssh: plugin install failed on the Beam" >&2; exit 1; }
+  exit 0
+fi
+
 case "$cmd" in
   *"codex app-server"*)
     printf '%s\n' '/home/beams/.codex'

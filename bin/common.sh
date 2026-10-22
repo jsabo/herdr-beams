@@ -42,6 +42,24 @@ BEAM_AGENT_ARGS="${BEAM_AGENT_ARGS---dangerously-skip-permissions}"
 # this is what tells a Beam from an ordinary SSH host in the machines rail:
 # `beam/neon-panel`, in herdr's own host/session label style. Empty for bare ids.
 BEAM_LABEL_PREFIX="${BEAM_LABEL_PREFIX-beam/}"
+# Where a Beam installs this plugin from. The Beam fetches it itself, so this is
+# a GitHub repository, not a path; override it to try a fork on a Beam.
+BEAM_PLUGIN_SOURCE="${BEAM_PLUGIN_SOURCE:-jsabo/herdr-beams}"
+
+# ---- laptop, or inside a Beam ---------------------------------------------
+#
+# The plugin runs on the laptop and, since 0.9.0, inside each Beam as well.
+# That is the only way a keybinding can work while a Beam is the machine
+# selected in the sidebar: herdr rebuilds the live keymap from the selected
+# machine's own server on every switch, so the key has to be published by that
+# Beam's herdr and the script it starts runs there (docs/architecture.md).
+#
+# The Beam-side install writes BEAM_SELF_ID and BEAM_SELF_UUID into the plugin's
+# env file on the Beam, so a script knows which Beam it is in without guessing
+# from a hostname. Nothing sets them on the laptop.
+BEAM_SELF_ID="${BEAM_SELF_ID:-}"
+BEAM_SELF_UUID="${BEAM_SELF_UUID:-}"
+in_beam() { [ -n "$BEAM_SELF_UUID" ]; }
 
 # ---- look -----------------------------------------------------------------
 #
@@ -193,6 +211,45 @@ beam_ssh() {
   # The bidirectional Codex transport needs its PID to belong to SSH itself.
   if [ "${BEAMS_EXEC_SSH:-0}" = 1 ]; then exec ssh "${SSH_OPTS[@]}" "$@"; fi
   ssh "${SSH_OPTS[@]}" "$@"
+}
+
+# Run a shell program on a Beam: over the shared SSH connection from the
+# laptop, in a local shell when the script is already running on that Beam.
+beam_run() {
+  local host="$1" program="$2"
+  if in_beam; then bash -c "$program"; else beam_ssh "$host" "$program"; fi
+}
+
+# The same, but the program replaces this process, because the Codex
+# app-server transport needs its PID to be the program itself.
+beam_exec() {
+  local host="$1" program="$2"
+  if in_beam; then exec bash -c "$program"; fi
+  BEAMS_EXEC_SSH=1 beam_ssh "$host" "$program"
+}
+
+# herdr for a Beam's own server: forwarded with --machine from the laptop,
+# called directly when the script is already on that Beam. An empty machine
+# selector means "this herdr". herdr_cmd prints the same call for the user.
+herdr_at() {
+  local machine="$1"
+  shift
+  if [ -z "$machine" ]; then "$HERDR" "$@"; else "$HERDR" --machine "$machine" "$@"; fi
+}
+herdr_cmd() {
+  if [ -z "$1" ]; then printf 'herdr'; else printf 'herdr --machine %s' "$1"; fi
+}
+
+# Panes that only the laptop can run. Creating and deleting Beams needs your
+# own Teleport login, and only the laptop's herdr owns the machines rail, so
+# inside a Beam these say where they belong instead of half-acting. Explaining
+# itself is the pane's work, so this is not a failure.
+laptop_only() {
+  in_beam || return 0
+  off "$1 runs on your laptop, not inside a Beam"
+  note "ctrl+b then g lists the machines: pick Local and press the key again"
+  pause
+  exit 0
 }
 
 # ---- the two lists, fetched once per script run ---------------------------
@@ -394,6 +451,75 @@ prepare_beam() {
   '
 }
 
+# ---- the Beams keys on a Beam ---------------------------------------------
+
+# The plugin's env file as it should look on a Beam: the laptop's settings, plus
+# which Beam this is. Every value is quoted the way bash will read it back.
+beam_env_file() {
+  local id="$1" uuid="$2" name
+  printf '# written by herdr-beams on the laptop; read by the plugin on this Beam\n'
+  printf 'BEAM_SELF_ID=%q\n' "$id"
+  printf 'BEAM_SELF_UUID=%q\n' "$uuid"
+  printf 'BEAMS_PROXY=%q\n' "$BEAMS_PROXY"
+  printf 'BEAM_LOGIN=%q\n' "$BEAM_LOGIN"
+  printf 'BEAM_AGENT_KIND=%q\n' "$BEAM_AGENT_KIND"
+  printf 'BEAM_AGENT_ARGS=%q\n' "$BEAM_AGENT_ARGS"
+  for name in BEAM_CLAUDE_PROFILE BEAM_CODEX_PROFILE; do
+    [ -z "${!name:-}" ] || printf '%s=%q\n' "$name" "${!name}"
+  done
+}
+
+# The program that puts this plugin and its keybindings on a Beam: install the
+# plugin from GitHub if it is missing, write the env file above, and append the
+# key block to the Beam's own herdr config unless it is already there. The two
+# payloads travel base64-encoded, so no quoting has to survive the trip, and
+# running the program again changes nothing. Its first lines are assignments,
+# so a test can decode what would be written without reaching a Beam.
+beam_setup_program() {
+  local id="$1" uuid="$2"
+  [ -f config/beam-keys.toml ] || die "config/beam-keys.toml is missing from the plugin"
+  printf 'beams_env=%q\n' "$(beam_env_file "$id" "$uuid" | base64 | tr -d '\n')"
+  printf 'beams_keys=%q\n' "$(base64 < config/beam-keys.toml | tr -d '\n')"
+  printf 'beams_source=%q\n' "$BEAM_PLUGIN_SOURCE"
+  cat <<'EOF'
+set -e
+herdr_bin="$(command -v herdr || true)"
+[ -n "$herdr_bin" ] || herdr_bin="$HOME/.local/bin/herdr"
+# --yes is required with no terminal on stdin, which is how this always runs
+# (herdr 0.9.x, src/cli/plugin.rs:147). The install prints its whole manifest
+# preview to stderr, which has no place in a popup, so it is held back and
+# shown only if the install fails.
+if ! "$herdr_bin" plugin list 2>/dev/null | grep -q herdr-beams; then
+  install_log="$(mktemp)"
+  if "$herdr_bin" plugin install --yes "$beams_source" >/dev/null 2>"$install_log"; then
+    rm -f "$install_log"
+  else
+    cat "$install_log" >&2
+    rm -f "$install_log"
+    exit 1
+  fi
+fi
+config_dir="$("$herdr_bin" plugin config-dir herdr-beams)"
+mkdir -p "$config_dir"
+printf %s "$beams_env" | base64 -d > "$config_dir/env"
+herdr_config="${XDG_CONFIG_HOME:-$HOME/.config}/herdr/config.toml"
+mkdir -p "$(dirname "$herdr_config")"
+if ! grep -qs '^# herdr-beams-keys$' "$herdr_config"; then
+  # A config that does not end in a newline would swallow the marker line.
+  [ ! -s "$herdr_config" ] || printf '\n' >> "$herdr_config"
+  printf %s "$beams_keys" | base64 -d >> "$herdr_config"
+fi
+EOF
+}
+
+# Put the plugin and its keys on a Beam. The caller decides what a failure
+# means: a Beam without the keys is still a usable Beam, so `new` says so and
+# carries on. stdin is closed, so nothing on the Beam can wait for an answer.
+install_beam_keys() {
+  local host="$1" id="$2" uuid="$3"
+  beam_run "$host" "$(beam_setup_program "$id" "$uuid")" </dev/null
+}
+
 # ---- agent launch profiles -------------------------------------------------
 # User records replace bundled records by name, including approval settings.
 load_profiles() {
@@ -467,9 +593,14 @@ pick_agent_profile() {
 }
 
 # Install on each launch: the Beam may have been created with another harness.
+# Inside a Beam this is the local herdr, so there is no SSH hop at all.
 install_agent_integration() {
   local host="$1" kind="$2"
   [[ "$kind" =~ ^[a-zA-Z0-9_-]+$ ]] || die "invalid agent kind $kind"
+  if in_beam; then
+    "$HERDR" integration install "$kind" >/dev/null
+    return
+  fi
   # shellcheck disable=SC2016  # expanded by the remote shell
   beam_ssh "$host" '
     herdr_bin="$(command -v herdr || true)"
@@ -483,7 +614,7 @@ install_agent_integration() {
 trust_codex_integration() (
   local host="$1" input output pid home expected states remaining deadline line
   # shellcheck disable=SC2016 # These variables expand on the Beam.
-  coproc CODEX_TRUST { BEAMS_EXEC_SSH=1 beam_ssh "$host" '
+  coproc CODEX_TRUST { beam_exec "$host" '
     set -e
     cd "$HOME"
     codex_home="${CODEX_HOME:-$HOME/.codex}"
@@ -519,7 +650,7 @@ trust_codex_integration() (
       return 0
     done
   }
-  codex_trust_rpc 1 '{"id":1,"method":"initialize","params":{"clientInfo":{"name":"herdr-beams","version":"0.8.7"},"capabilities":{"experimentalApi":true}}}' || exit 1
+  codex_trust_rpc 1 '{"id":1,"method":"initialize","params":{"clientInfo":{"name":"herdr-beams","version":"0.9.0"},"capabilities":{"experimentalApi":true}}}' || exit 1
   printf '%s\n' '{"method":"initialized"}' >&"$input"
   codex_trust_rpc 2 '{"id":2,"method":"hooks/list","params":{"cwds":[]}}' || exit 1
   states="$(jq -ce --arg path "$home/hooks.json" --arg command "$expected" '

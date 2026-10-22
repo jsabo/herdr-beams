@@ -86,6 +86,34 @@ case "${1:-} ${2:-}" in
   "plugin pane")
     printf '{"id":"cli:plugin:pane:open","result":{"pane_id":"w1:p9"},"type":"plugin_pane_opened"}\n'
     ;;
+  # The next four are what the Beam-side setup program calls. A test can run
+  # that program against a sandbox HOME with these on PATH, which is how the
+  # remote half is covered without a Beam.
+  "plugin list")
+    if [ -e "$FAKE_STATE/plugin-not-installed" ]; then
+      printf '0 plugins installed:\n'
+    else
+      printf -- '- herdr-beams (Teleport Beams) enabled [github:jsabo/herdr-beams]\n'
+    fi
+    ;;
+  "plugin install")
+    # The real binary prints its whole manifest preview to stderr, even when it
+    # succeeds; the setup program has to keep that out of the popup.
+    printf 'Plugin install preview:\n  id: herdr-beams\n  actions: 11\n' >&2
+    [ ! -e "$FAKE_STATE/plugin-install-fails" ] || { echo "fake herdr: install failed" >&2; exit 1; }
+    printf 'Installed herdr-beams from %s.\n' "$3"
+    ;;
+  "plugin config-dir")
+    printf '%s\n' "${HERDR_PLUGIN_CONFIG_DIR:-$HOME/.config/herdr/plugins/config/$3}"
+    ;;
+  "server reload-config")
+    [ ! -e "$FAKE_STATE/reload-config-fails" ] || exit 1
+    printf 'Reloaded configuration.\n'
+    ;;
+  "integration install")
+    [ ! -e "$FAKE_STATE/integration-fails" ] || exit 1
+    printf 'Installed the %s integration.\n' "$3"
+    ;;
   *)
     echo "fake herdr: unsupported: $*" >&2
     exit 2

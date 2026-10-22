@@ -16,10 +16,21 @@
   (`herdr-beams.new`), not its name, and `herdr server reload-config` after editing the
   file. A `type = "shell"` binding runs through `/bin/sh -lc`, which reads
   `~/.profile`, not `~/.zshrc`; if `herdr` is not on that PATH, write its full path.
-- **A keybinding does nothing while a Beam is selected in the sidebar.** herdr sends
-  a plugin action to the selected machine's server, and the herdr on a Beam has no
-  plugins (`herdr --machine beam/<id> plugin list` says so). Select Local, then press the
-  chord, or run `herdr plugin action invoke herdr-beams.<id>` from a shell.
+- **A keybinding does nothing while a Beam is selected in the sidebar.** The keys for
+  a Beam come from that Beam's own herdr, so the plugin has to be installed there.
+  Since 0.9.0 `new` does that while creating the Beam; for a Beam made earlier, run
+  `herdr plugin action invoke herdr-beams.keys` once.
+  `herdr --machine beam/<id> plugin list` says whether the plugin is on the Beam, and
+  `ctrl+b` then `?` lists the keys herdr has live for the selected machine. Two other
+  causes: it is one of the laptop-only panes (`new`, `rm`, `rm-all`, `keys`,
+  `demo`), which say so and change nothing on a Beam, or the action id is wrong.
+  `ctrl+b` then `g` picks Local.
+- **A herdr key stopped working after you added a plugin binding.** A custom command
+  claims its key before herdr parses its own defaults, and the colliding default is
+  dropped with no diagnostic (`src/config/keybinds.rs:651` and `:1099-1102` in herdr
+  0.9.x), so `herdr config check` still says `ok`. `herdr --default-config` lists the
+  defaults; move your binding off that key. The plugin's own nine keys are all clear
+  of them.
 - **You cannot select text in a popup.** herdr captures the mouse for its own
   selection. Hold Shift while you drag; the terminal then selects natively and Cmd+C
   (or your terminal's copy key) takes it.

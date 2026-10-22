@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Fake beamctl for unit tests. The Beam-side services and status panes run
+# beamctl directly instead of over ssh, so it needs to exist on PATH. The
+# output is the same fixture the ssh fake serves for a remote `beamctl list`.
+set -euo pipefail
+printf 'beamctl %s\n' "$*" >> "$FAKE_LOG"
+
+case "${1:-}" in
+  list) cat "$FAKE_STATE/beamctl-list.txt" 2>/dev/null || true ;;
+  logs) printf 'following: beamctl %s\n' "$*" ;;
+  *) echo "fake beamctl: unsupported: $*" >&2; exit 2 ;;
+esac

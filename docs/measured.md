@@ -58,6 +58,20 @@ one warmed the connection. What follows from the table:
 Unattended, median of three: 19 s from no Beam to a reachable machine in the sidebar
 (10 s provisioning, 2 s SSH, 1 s install, 6 s herdr server).
 
+**With the Beam-side plugin install (0.9.0, measured 2026-10-22, herdr 0.9.5 on the
+Beam, Teleport 18.11.2, one run):** 19.5 s in all, and the phase lines put
+**1.2 s** of that in `herdr plugin install --yes jsabo/herdr-beams` on the Beam
+(8.3 s provisioning, 3.5 s to SSH, 1.2 s herdr and the integration, 1.2 s this
+plugin, 5.3 s herdr's server start). The install was of the published checkout, so
+the number stands for any revision of this repository. Two things that run came out
+of that measurement:
+
+- `herdr plugin install` needs `--yes` when stdin is not a terminal
+  (`src/cli/plugin.rs:147`), which is always the case here.
+- It prints its whole manifest preview to **stderr** even on success, about 30
+  lines. The setup program holds that back and shows it only if the install
+  fails, or it would fill the popup.
+
 The plugin's ssh calls to one Beam share a connection (`ControlMaster`), and the
 install, the integration and the notes travel in one SSH session, so a new Beam costs
 one readiness probe plus one session.
@@ -141,6 +155,57 @@ about a Beam created but not yet in the sidebar (foreground phases of `new`) was
 with the popup. With `trap 'exit 130' INT` in `common.sh` (0.6.1), all three land in
 the handler as 130: the popup closes at once, and only a set `FAIL_HINT` keeps it
 open. Verified the same way for all three cases after the change.
+
+## The Beams keys on a Beam (0.9.0)
+
+Verified on a live Beam on 2026-10-22 (herdr 0.9.5 on the Beam, Teleport 18.11.2):
+`herdr plugin install --yes` over SSH put this plugin on a fresh Beam, the key block
+reached the Beam's `~/.config/herdr/config.toml`, the plugin's `env` there carried
+`BEAM_SELF_ID` and `BEAM_SELF_UUID`, and the Beam's own herdr published the plugin's
+actions to `herdr --machine beam/<id> plugin action list`. What a keypress then does
+on the Beam could not be run end to end, because a Beam installs the published
+revision and that is still 0.8.7; `tests/integration/live.bats` skips that case
+until 0.9.0 is on GitHub.
+
+**Which binding wins a collision** (read at 0.9.x, and it is the opposite of what
+it looks like): herdr parses user bindings in a first pass and its own defaults in a
+second (`src/config/keybinds.rs:651`), each binding claims its key as it is parsed,
+and a default that lands on an already-claimed key is dropped with **no diagnostic**
+(`:1099-1102`). So a `[[keys.command]]` on `prefix+s` works and herdr's Settings key
+silently stops existing, and `herdr config check` still prints `config: ok`. Hence
+the plugin's nine keys all avoid the defaults.
+
+The rest is read in herdr's own source at 0.9.x, not measured on a tenant:
+`apply_snapshot_keybindings` replaces the live `[[keys.command]]` list with the
+selected machine's published commands on every machine switch
+(`src/client/shell/config.rs:228-278`, re-run from `state.rs:1397`), which is why a
+Beam's keys have to come from that Beam's herdr. A popup belongs to the server that
+owns it and is delivered only in that machine's pane-update stream
+(`src/app/state.rs:877`, `src/client/endpoint/message_policy.rs:19-45`), and a
+second one fails with "popup already open" (`src/app/popup.rs:116`). `--machine`
+forwards only API-backed commands, with `plugin` limited to
+`link|unlink|enable|disable|list|action|log|logs|pane` and `server` to
+`stop|reload-config|agent-manifests|reload-agent-manifests`
+(`src/cli/target.rs:291-319`); `plugin install` and `plugin uninstall` are not
+among them, which is why the Beam-side install goes over SSH.
+
+Measured since: the Beam-side install itself, 1.2 s, under
+[The `new` popup](#the-new-popup) above. The demo's step 2 (18 s) and its 52 s whole
+story have not been re-run, so they are still the pre-0.9.0 numbers; expect about a
+second and a half more.
+
+Still to measure on a live Beam:
+
+- Whether `tsh beams ls` and `tsh beams publish` work inside a Beam under the
+  delegated identity. They are plain API calls, not certificate reissues, so they
+  are expected to work, but `disallow-reissue` has only been mapped for the
+  commands listed under the delegated identity above. The Beam-side `status` pane
+  falls back to the Beam's own settings and `beamctl` either way, and the
+  Beam-side `publish` pane names the laptop if `tsh` refuses.
+- Whether `herdr server reload-config` on a Beam is enough for an attached client
+  to pick up its new command list without switching machines away and back. A new
+  Beam does not depend on this, because its herdr server starts after the key block
+  is in place; the `keys` pane does.
 
 ## Expected, not yet measured
 

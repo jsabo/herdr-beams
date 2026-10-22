@@ -329,3 +329,50 @@ SH
   [ "$status" -eq 0 ]
   [ "${lines[1]}" = 'aaaaaaaa-0000-4000-8000-000000000001' ]
 }
+
+# ---- laptop, or inside a Beam ---------------------------------------------
+
+@test "in_beam is false on the laptop and true where the Beam-side settings are" {
+  common 'in_beam && echo yes || echo no'
+  [ "$output" = "no" ]
+  printf 'BEAMS_PROXY=example.beams.sh\nBEAM_SELF_ID=alpha-one\nBEAM_SELF_UUID=aaaa\n' \
+    > "$HERDR_PLUGIN_CONFIG_DIR/env"
+  common 'in_beam && echo yes || echo no'
+  [ "$output" = "yes" ]
+}
+
+@test "herdr_at forwards with --machine from the laptop and calls herdr directly on the Beam" {
+  common 'herdr_at id-alpha-one agent list >/dev/null; herdr_at "" agent list >/dev/null'
+  [ "$status" -eq 0 ]
+  calls_in_order "herdr --machine id-alpha-one agent list" "herdr agent list"
+  [ "$(call_count 'herdr --machine id-alpha-one agent list')" -eq 1 ]
+}
+
+@test "herdr_cmd prints the call it just made, for the user to copy" {
+  common 'herdr_cmd id-alpha-one; printf " / "; herdr_cmd ""'
+  [ "$output" = "herdr --machine id-alpha-one / herdr" ]
+}
+
+@test "beam_run sends the program over ssh from the laptop" {
+  common 'beam_run beams@host.example "echo hello"'
+  [ "$status" -eq 0 ]
+  grep -q "^ssh .*beams@host.example echo hello$" "$FAKE_LOG"
+}
+
+@test "beam_run runs the program in a local shell inside a Beam, with no ssh" {
+  printf 'BEAMS_PROXY=example.beams.sh\nBEAM_SELF_UUID=aaaa\n' > "$HERDR_PLUGIN_CONFIG_DIR/env"
+  common 'beam_run "" "echo hello"'
+  [ "$output" = "hello" ]
+  [ ! -s "$FAKE_LOG" ]
+}
+
+@test "laptop_only is quiet on the laptop and explains itself inside a Beam" {
+  common 'laptop_only "the New Beam pane"; echo reached'
+  [ "$status" -eq 0 ]
+  [ "$output" = "reached" ]
+  printf 'BEAMS_PROXY=example.beams.sh\nBEAM_SELF_UUID=aaaa\n' > "$HERDR_PLUGIN_CONFIG_DIR/env"
+  common 'laptop_only "the New Beam pane"; echo reached'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"the New Beam pane runs on your laptop, not inside a Beam"* ]]
+  [[ "$output" != *"reached"* ]]
+}

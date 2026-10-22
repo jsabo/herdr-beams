@@ -45,6 +45,16 @@ run_interactive() { run env BEAMS_INTERACTIVE=1 bash "$REPO/bin/$1" "${@:2}"; }
 # from beam-open.sh, so y/N questions are skipped. Value questions still read stdin.
 run_bound() { run env BEAMS_INTERACTIVE=1 BEAMS_YES=1 bash "$REPO/bin/$1" "${@:2}"; }
 
+# Run a script the way the Beam's own herdr server runs it, which is what a
+# keybinding pressed while that Beam is selected does: the plugin is installed
+# on the Beam, BEAM_SELF_* say which Beam it is, and the popup has a keyboard.
+# The Beam is alpha-one from the fixtures. Value questions still read stdin.
+run_in_beam() {
+  run env BEAMS_INTERACTIVE=1 BEAMS_YES=1 \
+    BEAM_SELF_ID=alpha-one BEAM_SELF_UUID=aaaaaaaa-0000-4000-8000-000000000001 \
+    bash "$REPO/bin/$1" "${@:2}"
+}
+
 # Assert that each fixed-string pattern appears in the call log, in this order.
 calls_in_order() {
   local last=0 want n

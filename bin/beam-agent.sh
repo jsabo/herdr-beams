@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Start a coding agent inside a Beam from the laptop: a new workspace on the
-# Beam's herdr server, the agent in its root pane, an optional first prompt.
+# Start a coding agent inside a Beam: a new workspace on the Beam's herdr
+# server, the agent in its root pane, an optional first prompt. Run from the
+# laptop it drives the Beam's herdr with --machine; run on the Beam itself,
+# which is what a keybinding pressed while that Beam is selected does, the same
+# calls are local and there is no Beam to pick.
 # The workspace is created without focus and the Beam's default "~" workspace
 # keeps it: herdr clears an agent's `done` state as soon as its pane is viewed,
 # and on a headless server the focused pane counts as viewed. An agent in the
@@ -12,7 +15,8 @@
 # Once the prompt is sent the pane is done: the agent list in the sidebar shows
 # working, then done, and the agent's own pane is a click away, so this pane
 # never waits on the agent.
-# Usage: beam-agent.sh [--profile <name> | --pick-profile] [beam-id] [workspace-label] [prompt...]
+# Usage, on the laptop: beam-agent.sh [--profile <name> | --pick-profile] [beam-id] [workspace-label] [prompt...]
+# Usage, on a Beam:     beam-agent.sh [--profile <name> | --pick-profile] [workspace-label] [prompt...]
 cd "$(dirname "$0")/.." || exit 1
 # shellcheck disable=SC1091
 . bin/common.sh
@@ -31,27 +35,39 @@ case "${1:-}" in
   --pick-profile) pick_agent_profile; profile="$BEAM_AGENT_PROFILE"; shift ;;
 esac
 load_agent_profile "$profile"
-quick_reconcile
 
-if [ -z "${1:-}" ] && [ "$(beams_json | jq 'length')" -eq 0 ] && interactive; then
-  off "no Beams on $BEAMS_PROXY"
-  if must_confirm; then
-    hints "enter create one and start the agent in it" "n close"
-    yn=""
-    ask "No Beams yet. Create one and start the agent in it? [Y/n] " yn
-    case "$yn" in n|N) die "no Beams; create one with the New Beam pane" ;; esac
+if in_beam; then
+  # On the Beam itself: this Beam, its own herdr, no Beam list and no SSH. An
+  # empty machine selector is what makes every herdr_at call below local.
+  id="$BEAM_SELF_ID"
+  machine=""
+  host=""
+  label="${1:-}"
+  shift $(( $# > 1 ? 1 : $# ))
+else
+  quick_reconcile
+
+  if [ -z "${1:-}" ] && [ "$(beams_json | jq 'length')" -eq 0 ] && interactive; then
+    off "no Beams on $BEAMS_PROXY"
+    if must_confirm; then
+      hints "enter create one and start the agent in it" "n close"
+      yn=""
+      ask "No Beams yet. Create one and start the agent in it? [Y/n] " yn
+      case "$yn" in n|N) die "no Beams; create one with the New Beam pane" ;; esac
+    fi
+    # beam-new creates the Beam and hands back to this script with its id.
+    exec bash bin/beam-new.sh --agent --profile "$profile" "${@:2}"
   fi
-  # beam-new creates the Beam and hands back to this script with its id.
-  exec bash bin/beam-new.sh --agent --profile "$profile" "${@:2}"
-fi
 
-id="$(pick_beam "${1:-}")"
-profile_id="$(machine_id "$id")"
-[ -n "$profile_id" ] || die "Beam $id has no sidebar entry; install herdr on it and run bash bin/beam-reconcile.sh"
-# A profile ID survives label changes and avoids ambiguous labels.
-machine="$profile_id"
-label="${2:-}"
-shift $(( $# > 2 ? 2 : $# ))
+  id="$(pick_beam "${1:-}")"
+  profile_id="$(machine_id "$id")"
+  [ -n "$profile_id" ] || die "Beam $id has no sidebar entry; install herdr on it and run bash bin/beam-reconcile.sh"
+  # A profile ID survives label changes and avoids ambiguous labels.
+  machine="$profile_id"
+  host="$(beam_host "$(beam_uuid "$id")")"
+  label="${2:-}"
+  shift $(( $# > 2 ? 2 : $# ))
+fi
 prompt="$*"
 
 if [ -z "$label" ] && interactive; then
@@ -65,13 +81,13 @@ fi
 
 if [ "$prepared_harness" != "$AGENT_KIND" ]; then
   busy "installing $AGENT_KIND integration on $id"
-  install_agent_integration "$(beam_host "$(beam_uuid "$id")")" "$AGENT_KIND" \
+  install_agent_integration "$host" "$AGENT_KIND" \
     || die "could not install $AGENT_KIND integration on $id"
 fi
 
 if [ "$AGENT_KIND" = codex ]; then
   busy "registering the Herdr Codex hook on $id"
-  trust_codex_integration "$(beam_host "$(beam_uuid "$id")")" \
+  trust_codex_integration "$host" \
     || die "could not prepare Codex hook trust on $id; no agent was launched"
 fi
 
@@ -88,9 +104,9 @@ cleanup_agent() {
   exit "$rc"
 }
 trap cleanup_agent EXIT
-"$HERDR" --machine "$machine" agent list > "$taken_json" &
+herdr_at "$machine" agent list > "$taken_json" &
 list_pid=$!
-created="$("$HERDR" --machine "$machine" workspace create --cwd '~' --label "$label" --no-focus)"
+created="$(herdr_at "$machine" workspace create --cwd '~' --label "$label" --no-focus)"
 wait "$list_pid" || die "could not list the agents on $id"
 list_pid=""
 pane="$(jq -ers '
@@ -116,16 +132,16 @@ done
 # a one-use shell shim in this fresh pane: only the actual Codex process inherits
 # the hint, and the shim removes itself before running the executable.
 if [ "$AGENT_KIND" = codex ]; then
-  "$HERDR" --machine "$machine" pane run "$pane" \
+  herdr_at "$machine" pane run "$pane" \
     'codex() { unset -f codex; HERDR_AGENT=codex command codex "$@"; }' >/dev/null \
     || die "could not prepare Codex process detection in pane $pane; no agent was launched"
 fi
 
-"$HERDR" --machine "$machine" agent start "$agent" --kind "$AGENT_KIND" --pane "$pane" -- "${AGENT_ARGS[@]}" >/dev/null
+herdr_at "$machine" agent start "$agent" --kind "$AGENT_KIND" --pane "$pane" -- "${AGENT_ARGS[@]}" >/dev/null
 phase "$AGENT_KIND is ready as agent $agent"
 
 if [ -n "$prompt" ]; then
-  "$HERDR" --machine "$machine" agent prompt "$agent" "$prompt" >/dev/null
+  herdr_at "$machine" agent prompt "$agent" "$prompt" >/dev/null
   phase "prompt sent; the agent list shows $agent as working"
 fi
 
@@ -136,7 +152,7 @@ if [ -n "$prompt" ]; then
 else
   card_line "$C_OK$G_OK$C_RESET idle, waiting for a prompt · pane $pane"
 fi
-card_line "watch it:   herdr --machine $machine agent read $agent"
-card_line "prompt it:  herdr --machine $machine agent prompt $agent \"...\" --wait"
+card_line "watch it:   $(herdr_cmd "$machine") agent read $agent"
+card_line "prompt it:  $(herdr_cmd "$machine") agent prompt $agent \"...\" --wait"
 card_close
 pause

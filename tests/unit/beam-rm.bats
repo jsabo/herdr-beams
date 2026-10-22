@@ -98,3 +98,12 @@ setup() { setup_fakes; }
   jq -e 'all(.id != "alpha-one")' "$HERDR_PLUGIN_STATE_DIR/beams.json"
   [[ "$output" == *'was deleted but profile id-alpha-one remains'* ]]
 }
+
+@test "rm, in a Beam: says deleting Beams belongs on the laptop and deletes nothing" {
+  run_in_beam beam-rm.sh </dev/null
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"runs on your laptop, not inside a Beam"* ]]
+  [[ "$output" == *"pick Local and press the key again"* ]]
+  [ "$(call_count 'beams rm')" -eq 0 ]
+  [ "$(call_count 'machine remove')" -eq 0 ]
+}

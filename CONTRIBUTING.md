@@ -11,7 +11,7 @@ tests/run.sh
 ```
 
 That runs shellcheck, `bash -n` and the bats unit tests under `tests/unit/`. Every
-script runs against fake `tsh`, `herdr` and `ssh` commands in `tests/fakes/`, which
+script runs against fake `tsh`, `herdr`, `ssh` and `beamctl` commands in `tests/fakes/`, which
 record each call, so the tests assert on the exact command lines a script issues and
 on every question a popup can ask. Add or change a test with every behaviour change.
 

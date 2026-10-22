@@ -179,3 +179,12 @@ run_demo() { run env DEMO_AUTO=1 "$@" bash demo/demo.sh </dev/null; }
   [[ "$output" == *"set BEAMS_PROXY="* ]]
   [ ! -s "$FAKE_LOG" ]
 }
+
+@test "demo, in a Beam: says the walkthrough belongs on the laptop and creates nothing" {
+  run env BEAMS_INTERACTIVE=1 DEMO_AUTO=1 \
+    BEAM_SELF_ID=alpha-one BEAM_SELF_UUID=aaaaaaaa-0000-4000-8000-000000000001 \
+    bash "$REPO/demo/demo.sh" </dev/null
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"runs on your laptop, not inside a Beam"* ]]
+  [ "$(call_count 'beams add')" -eq 0 ]
+}

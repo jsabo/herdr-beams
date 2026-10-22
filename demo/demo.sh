@@ -17,6 +17,7 @@ cd "$(dirname "$0")/.." || exit 1
 # shellcheck disable=SC1091
 . bin/common.sh
 require_config
+laptop_only "the demo"
 quick_reconcile
 interactive || DEMO_AUTO=1
 

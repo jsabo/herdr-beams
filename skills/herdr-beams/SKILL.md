@@ -30,6 +30,16 @@ ROOT="${HERDR_PLUGIN_ROOT:-<the path herdr plugin list shows for herdr-beams>}"
 If the plugin's config has no `BEAMS_PROXY`, stop and ask the user for the tenant
 (`<name>.beams.sh`). Never run `tsh login` for the user.
 
+**The same plugin is installed on each Beam, and its scripts behave differently
+there.** Check with `test -n "${BEAM_SELF_UUID:-}"` after sourcing the plugin's
+`env`, or just read that file: a Beam's copy sets `BEAM_SELF_ID` and
+`BEAM_SELF_UUID`. On a Beam, `beam-agent.sh`, `beam-profiles.sh`, `beam-claude.sh`,
+`beam-codex.sh`, `beam-status.sh`, `beam-services.sh` and `beam-publish.sh` act on
+that Beam, take no Beam id, and call the local herdr with no `--machine`.
+`beam-new.sh`, `beam-rm.sh`, `beam-rm-all.sh`, `beam-keys.sh` and the demo exit 0
+there without doing anything, because creating and deleting Beams needs the user's
+own Teleport login and the laptop's machine list. Run those from the laptop.
+
 ## Create a Beam and put an agent in it
 
 The plugin's scripts do the whole sequence. Always give them `</dev/null`: with no
@@ -86,7 +96,12 @@ bash "$ROOT/bin/beam-services.sh" <beam-id> </dev/null  # beam-init services (be
 bash "$ROOT/bin/beam-publish.sh" <beam-id> http </dev/null  # expose port 8080 as a Teleport app
 bash "$ROOT/bin/beam-rm.sh" <beam-id> </dev/null        # delete the Beam and its profile
 bash "$ROOT/bin/beam-rm-all.sh" </dev/null              # delete every Beam and profile (no question without a terminal)
+bash "$ROOT/bin/beam-keys.sh" <beam-id> </dev/null      # install the plugin and its key block on a Beam made before 0.9.0
 ```
+
+On a Beam, the same scripts take no Beam id: `bash "$ROOT/bin/beam-status.sh"`
+reports that Beam, `beam-services.sh <service>` follows a service's logs, and
+`beam-publish.sh http` publishes that Beam's port 8080.
 
 Long-running processes inside a Beam that are not agents (a dev server, a database)
 belong to beam-init, not to a herdr pane:
