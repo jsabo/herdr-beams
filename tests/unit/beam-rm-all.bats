@@ -93,3 +93,11 @@ setup() { setup_fakes; }
   jq -e 'any(.id == "id-alpha-one")' "$FAKE_STATE/machines.json"
   ! grep -q 'beams rm beta-two\|machine remove id-alpha-one' "$FAKE_LOG"
 }
+
+@test "rm-all, in a Beam: says the teardown belongs on the laptop and deletes nothing" {
+  run_in_beam beam-rm-all.sh </dev/null
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"runs on your laptop, not inside a Beam"* ]]
+  [ "$(call_count 'beams rm')" -eq 0 ]
+  [ "$(call_count 'machine remove')" -eq 0 ]
+}

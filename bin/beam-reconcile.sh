@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Startup hook: make the sidebar match reality. Removes herdr machine
 # profiles whose Beam has expired or been deleted, adds profiles for Beams
-# that already have herdr installed, and refreshes the state file.
+# that already have herdr installed (installing this plugin and its keys on
+# them as it goes), and refreshes the state file.
 # Never asks questions; a missing login just logs and exits 0.
 # Every pane runs the removal half on entry (quick_reconcile); only this
 # hook attempts adds, because an add is an SSH round trip per Beam.
@@ -46,6 +47,13 @@ while IFS=$'\t' read -r id uuid; do
     fi
   else
     host="$(beam_host "$uuid")"
+    # This Beam is new to the sidebar, so it may also predate the Beam-side
+    # keys. The add is already an SSH round trip; the install shares that
+    # connection and goes first, because `machine add` is what starts the
+    # Beam's herdr server and the server reads its config once, at startup.
+    # A Beam without herdr fails both, which the message below already covers.
+    install_beam_keys "$host" "$id" "$uuid" >/dev/null 2>&1 \
+      || printf 'beams: could not install the plugin on %s; its keys will not work while it is selected\n' "$id"
     if "$HERDR" machine add "ssh://$host" --label "$label" </dev/null >/dev/null 2>"$registration_errors"; then
       printf 'beams: added profile for %s as %s\n' "$id" "$label"
       registrations_changed=1

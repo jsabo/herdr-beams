@@ -56,6 +56,49 @@ survives the SSH session that started it, and its panes inherit the Beam's envir
 so the inference endpoints and the Teleport identity variables are present in every
 agent without configuration.
 
+## Why the plugin is installed on each Beam
+
+A keybinding that runs a command belongs to the herdr server where that command
+would run, not to your local configuration. Each time you select a different
+machine, herdr replaces the live `[[keys.command]]` list with the one the newly
+selected machine's server publishes: `apply_snapshot_keybindings`
+(`src/client/shell/config.rs:228-278` in herdr 0.9.x), re-run from
+`state.rs:1397` on every switch. Nothing filters your laptop's bindings while a
+Beam is selected; they are simply not in the keymap, so the key reaches the Beam's
+pane instead.
+
+Three ways around that are closed. A binding cannot be scoped to a machine, since
+a `[[keys.command]]` entry takes only `key`, `command`, `type`, `description`,
+`width` and `height` (`src/config/keybinds.rs:123-135`), and none of the built-in
+`[keys]` actions, which do survive a switch, can run a command or invoke a plugin
+action (`src/input/keybindings.rs:19-72`). Invoking the action on the laptop
+anyway does not help either: a popup is state held by the server that owns it and
+reaches the screen only in that machine's own stream of pane updates
+(`src/app/state.rs:877`, `src/client/endpoint/message_policy.rs:19-45`), so a popup
+opened on the laptop while a Beam is selected is drawn nowhere and the next one
+fails with "popup already open" (`src/app/popup.rs:116`). And nothing outside the
+running client can change which machine is selected: there is no such command
+(`src/cli/machine.rs:10-25`) and no such socket API method
+(`src/api/schema.rs:45-148`).
+
+So the plugin is installed on each Beam, and that Beam's herdr publishes the keys.
+The Beam fetches it from GitHub itself, so it gets the published revision of
+`jsabo/herdr-beams`, not the copy on your laptop. A linked checkout you are working
+on is laptop-side only; `BEAM_PLUGIN_SOURCE` in the plugin's `env` points the Beam
+at a different repository if you need one.
+`new` does this before `herdr machine add`, which is what starts the Beam's herdr
+server: the server then reads a configuration that already contains the key block,
+and nothing has to be reloaded. The `keys` action does the same for an existing
+Beam and asks its server to reload, which is what republishes the command list.
+
+What a key does then follows where you are. On a Beam, the single-Beam
+entrypoints act on that Beam through its own herdr, with no SSH hop: `herdr_at` in
+`bin/common.sh` drops the `--machine` selector, `beamctl` runs locally, and
+`BEAM_SELF_ID` and `BEAM_SELF_UUID` in the Beam's `env` file say which Beam it is.
+Creating and deleting Beams stays on the laptop, because it needs your own
+Teleport login and only the laptop's herdr owns the machines rail; on a Beam those
+panes say so and do nothing. Nothing runs from a Beam towards your laptop.
+
 ## Runtime lifecycle and compatibility
 
 The plugin implements the `tsh beams` workflow exercised in the tested beta. It
@@ -83,7 +126,12 @@ scripts in `bin/`, and they do exactly this:
   workspaces and agents on the Beam. Deletion removes the runtime before its
   sidebar entry, preserving access when the deletion request fails.
 - **On the Beam**: `curl -fsSL https://herdr.dev/install.sh | sh` if herdr is
-  missing, `herdr integration install <selected harness>`, and a section
+  missing, `herdr plugin install jsabo/herdr-beams` if this plugin is missing, the
+  plugin's own `env` file written into `$(herdr plugin config-dir herdr-beams)`
+  there, one block appended to the Beam's `~/.config/herdr/config.toml` after a
+  `# herdr-beams-keys` marker (`config/beam-keys.toml`: the same nine keys the
+  README recommends on the laptop, the prefix then Shift and the initial of the
+  thing), `herdr integration install <selected harness>`, and a section
   `## Inside a Beam (added by herdr-beams)` appended to the Beam's `~/.claude/CLAUDE.md`
   and `~/AGENTS.md`. The text is `beam_notes` in `bin/common.sh`: the facts an agent
   otherwise spends its first minutes rediscovering (which `tsh` commands the delegated

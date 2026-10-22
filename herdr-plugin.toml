@@ -12,10 +12,16 @@
 # `herdr plugin action invoke herdr-beams.<id>` works from any shell. A pane
 # opened that way skips its y/N question (bin/beam-open.sh sets BEAMS_YES=1);
 # opened from the plugin menu, it asks.
+#
+# The plugin is installed on each Beam as well. herdr rebuilds the live keymap
+# from the selected machine's own server, so a key pressed while a Beam is
+# selected can only come from that Beam's herdr; the single-Beam entrypoints
+# then act on that Beam, and the fleet ones say they belong on the laptop
+# (docs/architecture.md).
 
 id = "herdr-beams"
 name = "Teleport Beams"
-version = "0.8.7"
+version = "0.9.0"
 # 0.9.1 added `herdr --machine` forwarding, manifest actions, `plugin action
 # invoke` and `plugin pane open --env`, everything the scripts use (checked
 # against the 0.9.1 binary's help and the v0.9.1 source). `machine rename` is
@@ -25,7 +31,8 @@ description = "Bring your agents to Teleport Beams from the herdr sidebar: trust
 platforms = ["macos", "linux"]
 
 # Drop machine profiles whose Beam has expired, add profiles for Beams that exist
-# without one. Runs once each time the local herdr server starts.
+# without one, and put the plugin and its keys on the Beams it registers.
+# Runs once each time the local herdr server starts.
 [[startup]]
 command = ["bash", "bin/beam-reconcile.sh"]
 
@@ -210,3 +217,21 @@ title = "Beams: Start Codex"
 description = "Launch the configured Codex profile in a new workspace"
 contexts = ["global"]
 command = ["bash", "bin/beam-open.sh", "codex"]
+
+# For Beams made before 0.9.0, or after the plugin was removed from one. `new`
+# does this for every Beam it creates.
+[[panes]]
+id = "keys"
+title = "Beam keybindings"
+description = "Install this plugin and its key block on an existing Beam, so the keys work while that Beam is selected"
+placement = "popup"
+width = "80%"
+height = "60%"
+command = ["bash", "bin/beam-keys.sh"]
+
+[[actions]]
+id = "keys"
+title = "Beams: keys for an existing Beam"
+description = "Install this plugin and its key block on an existing Beam"
+contexts = ["global"]
+command = ["bash", "bin/beam-open.sh", "keys"]

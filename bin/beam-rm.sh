@@ -7,6 +7,7 @@ cd "$(dirname "$0")/.." || exit 1
 . bin/common.sh
 require_config
 header "Remove a Beam"
+laptop_only "the Remove a Beam pane"
 quick_reconcile
 
 id="$(pick_beam "${1:-}")"

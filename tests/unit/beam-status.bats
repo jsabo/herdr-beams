@@ -41,3 +41,27 @@ setup() { setup_fakes; }
   [ "$status" -eq 1 ]
   [[ "$output" == *"tsh login"* ]]
 }
+
+# ---- on the Beam itself ----------------------------------------------------
+
+@test "status, in a Beam: one card for this Beam, with its services" {
+  run_in_beam beam-status.sh </dev/null
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"╭─ alpha-one"* ]]
+  [[ "$output" == *"● this Beam · aaaaaaaa-0000-4000-8000-000000000001"* ]]
+  [[ "$output" == *"region us-west-2"* ]]
+  [[ "$output" == *"expires 2030-01-01 10:00 UTC · in "* ]]
+  [[ "$output" == *"web (running PID=597)"* ]]
+  [[ "$output" != *"beta-two"* ]]
+  ! grep -q "machine list" "$FAKE_LOG"
+  ! grep -q "^ssh" "$FAKE_LOG"
+}
+
+@test "status, in a Beam: without the laptop's login it reports what the Beam knows" {
+  touch "$FAKE_STATE/not-logged-in"
+  run_in_beam beam-status.sh </dev/null
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"● this Beam · aaaaaaaa-0000-4000-8000-000000000001"* ]]
+  [[ "$output" == *"region and expiry need the laptop's login"* ]]
+  [[ "$output" == *"web (running PID=597)"* ]]
+}

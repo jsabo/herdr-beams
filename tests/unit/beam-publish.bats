@@ -48,3 +48,26 @@ setup() { setup_fakes; }
   [ "$status" -eq 0 ]
   grep -q "beams publish alpha-one$" "$FAKE_LOG"
 }
+
+# ---- on the Beam itself ----------------------------------------------------
+
+@test "publish, in a Beam: publishes this Beam, and the argument is the protocol" {
+  run_in_beam beam-publish.sh </dev/null
+  [ "$status" -eq 0 ]
+  grep -q "^tsh --proxy=example.beams.sh beams publish alpha-one$" "$FAKE_LOG"
+  ! grep -q "machine list" "$FAKE_LOG"
+}
+
+@test "publish, in a Beam: tcp is still the second shape, as the only argument" {
+  run_in_beam beam-publish.sh tcp </dev/null
+  [ "$status" -eq 0 ]
+  grep -q "^tsh --proxy=example.beams.sh beams publish --tcp alpha-one$" "$FAKE_LOG"
+}
+
+@test "publish, in a Beam: a refused publish names the laptop as the way out" {
+  touch "$FAKE_STATE/publish-fails"
+  run_in_beam beam-publish.sh http </dev/null
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"publish from the laptop with Local selected"* ]]
+  [[ "$output" == *"could not publish port 8080 of alpha-one"* ]]
+}

@@ -33,8 +33,44 @@ host="beams@cccccccc-0000-4000-8000-000000000003.example.beams.sh"
   [ "$(call_count 'grep -qs "^## Inside a Beam"')" -eq 1 ]
   [ "$(call_count '"$HOME/.claude/CLAUDE.md" "$HOME/AGENTS.md"')" -eq 1 ]
   [ "$(call_count ' --version')" -eq 1 ]
-  # ... and the readiness probes apart, there is exactly one ssh session to the Beam
-  [ "$(grep -c "^ssh .*$host " "$FAKE_LOG")" -eq $(( $(call_count "$host true") + 1 )) ]
+  # ... and the readiness probes apart, two ssh sessions reach the Beam: this
+  # one, and the plugin install below. Both reuse the shared connection.
+  [ "$(grep -c "^ssh .*$host " "$FAKE_LOG")" -eq $(( $(call_count "$host true") + 2 )) ]
+}
+
+@test "new: the plugin and its key block go on the Beam before its herdr server starts" {
+  run_script beam-new.sh
+  [ "$status" -eq 0 ]
+  # `machine add` is what starts the Beam's herdr server, and a server reads
+  # its config once, at startup: the keys have to be there first.
+  calls_in_order \
+    "curl -fsSL https://herdr.dev/install.sh | sh" \
+    "plugin config-dir herdr-beams" \
+    "herdr machine add"
+  [ "$(call_count 'plugin config-dir herdr-beams')" -eq 1 ]
+  grep -q "^ssh .*$host beams_env=" "$FAKE_LOG"
+  [[ "$output" == *"the Beams keys will work while new-beam is the selected machine"* ]]
+  # nothing is reloaded: the server had not started yet
+  [ "$(call_count 'server reload-config')" -eq 0 ]
+}
+
+@test "new: a Beam that would not take the plugin is still created and registered" {
+  touch "$FAKE_STATE/keys-setup-fails"
+  run_script beam-new.sh
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"could not install the plugin on new-beam"* ]]
+  [[ "$output" == *"herdr plugin action invoke herdr-beams.keys"* ]]
+  [[ "$output" == *"new-beam is in the sidebar"* ]]
+  grep -q "herdr machine add ssh://$host --label beam/new-beam" "$FAKE_LOG"
+}
+
+@test "new: inside a Beam it says Beam creation belongs on the laptop" {
+  run_in_beam beam-new.sh </dev/null
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"runs on your laptop, not inside a Beam"* ]]
+  [[ "$output" == *"pick Local and press the key again"* ]]
+  [ "$(call_count 'beams add')" -eq 0 ]
+  [ "$(call_count 'herdr machine add')" -eq 0 ]
 }
 
 @test "new: a failure after the Beam exists names it and says how to remove it" {
@@ -76,7 +112,8 @@ host="beams@cccccccc-0000-4000-8000-000000000003.example.beams.sh"
 @test "new: every phase line carries a timestamp" {
   run_script beam-new.sh
   [ "$status" -eq 0 ]
-  [ "$(printf '%s\n' "$output" | grep -cE '^✓ \[\+ *[0-9.]+s\] ')" -eq 4 ]
+  # created, SSH up, herdr installed, keys on the Beam, in the sidebar
+  [ "$(printf '%s\n' "$output" | grep -cE '^✓ \[\+ *[0-9.]+s\] ')" -eq 5 ]
 }
 
 @test "new: the plugin's ssh calls share one connection" {

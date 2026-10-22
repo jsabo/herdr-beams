@@ -1,7 +1,11 @@
 # Instructions for agents working on herdr-beams
 
-This repo is a herdr plugin plus a README. It is public. Everything here runs on the
-user's laptop, never inside a Beam.
+This repo is a herdr plugin plus a README. It is public. The scripts run on the
+user's laptop and, since 0.9.0, inside each Beam as well: herdr rebuilds the live
+keymap from the selected machine's own server, so a key pressed while a Beam is
+selected can only be published by that Beam's herdr (`docs/architecture.md`).
+`in_beam` in `bin/common.sh` is what tells the two apart, and it is true only when
+the Beam-side `env` file sets `BEAM_SELF_UUID`.
 
 ## Structure
 
@@ -22,8 +26,18 @@ user's laptop, never inside a Beam.
   `require_config`, except the reconcile hook, which must stay quiet without config.
 - `tests/unit/<script>.bats` per script, `tests/fakes/` and `tests/fixtures/` for the
   offline doubles, `tests/integration/` for the opt-in live run. `tests/helpers.bash`
-  has `run_script` (no terminal, like a scripted call) and `run_interactive` (answers
-  fed on stdin, as if someone were at the keyboard of a popup).
+  has `run_script` (no terminal, like a scripted call), `run_interactive` (answers
+  fed on stdin, as if someone were at the keyboard of a popup) and `run_in_beam`
+  (the Beam-side settings in the environment, as the Beam's own herdr runs it).
+- `config/beam-keys.toml` is the key block appended to a Beam's own herdr config and
+  the block the README tells a reader to copy; `tests/unit/beam-keys.bats` diffs the
+  two. A key is `prefix+shift+<initial of the thing>` and must avoid every herdr
+  default (`herdr --default-config`): a custom command claims its key before the
+  defaults are parsed, so a collision silently removes herdr's own action.
+  `beam_setup_program` in `bin/common.sh` prints the program that installs the
+  plugin on a Beam, writes its `env` file there and appends that block. shellcheck
+  cannot see inside that program, so `tests/unit/beam-keys.bats` syntax-checks it
+  with `bash -n` and runs it against a sandbox `HOME`.
 - `demo/demo.sh` is the scripted walkthrough. It follows the same rules as `bin/`,
   only calls the `bin/` scripts and `herdr --machine`, and must keep passing
   `tests/unit/demo.bats` in `DEMO_AUTO=1` mode.
@@ -40,7 +54,7 @@ tests/run.sh
 ```
 
 That runs shellcheck, `bash -n`, and the bats unit tests under `tests/unit/`, which
-exercise every script against fake `tsh`, `herdr` and `ssh` commands in
+exercise every script against fake `tsh`, `herdr`, `ssh` and `beamctl` commands in
 `tests/fakes/` (`brew install bats-core shellcheck`). Add or change a test with every
 behaviour change; the fakes record each call in `$FAKE_LOG`, so assert on the exact
 command lines the script issues.
@@ -58,7 +72,18 @@ Then open the entry you changed for real: `herdr plugin link "$(pwd)"`, then
 
 ## Conventions
 
-- Call herdr only through `$HERDR_BIN_PATH`; it points at the running binary.
+- Call herdr only through `$HERDR_BIN_PATH`; it points at the running binary. For a
+  call against a Beam's own herdr, use `herdr_at "$machine"`, which drops
+  `--machine` when the script is already on that Beam, and `herdr_cmd` to print the
+  same call for the user. For a shell program on a Beam, use `beam_run` (or
+  `beam_exec` where the program must replace the process), never `beam_ssh`
+  directly, so the Beam-side path works too.
+- Every pane decides early which context it is in. A pane that acts on one Beam
+  branches on `in_beam` before `quick_reconcile`, because inside a Beam there is no
+  Beam to pick, no machine list and possibly no Beam list. A pane that needs the
+  laptop calls `laptop_only "<its name>"` right after `header` and gets a visible
+  explanation and exit 0; it must never half-act. Every branch gets a `run_in_beam`
+  test, including the refusals.
 - The Beam list and the machine list are fetched once per run into `BEAMS_JSON` and
   `MACHINES_JSON` (`load_lists`). After a change, call `refresh_beams` /
   `refresh_machines` or patch the cache (`remember_beam`, `forget_beam`); never shell

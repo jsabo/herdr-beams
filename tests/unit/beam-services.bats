@@ -46,3 +46,23 @@ host="beams@aaaaaaaa-0000-4000-8000-000000000001.example.beams.sh"
   run_script beam-services.sh alpha-one
   calls_in_order "herdr machine remove id-gone-beam" "beamctl list"
 }
+
+# ---- on the Beam itself ----------------------------------------------------
+
+@test "services, in a Beam: runs beamctl directly, with no ssh and no Beam picker" {
+  run_in_beam beam-services.sh </dev/null
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"beam-init services on alpha-one"* ]]
+  [[ "$output" == *"web (running PID=597)"* ]]
+  grep -q "^beamctl list$" "$FAKE_LOG"
+  ! grep -q "^ssh" "$FAKE_LOG"
+  ! grep -q "beams ls" "$FAKE_LOG"
+}
+
+@test "services, in a Beam: the first argument is the service to follow" {
+  run_in_beam beam-services.sh web </dev/null
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"following: beamctl logs --follow web"* ]]
+  grep -q "^beamctl logs --follow web$" "$FAKE_LOG"
+  ! grep -q "^ssh" "$FAKE_LOG"
+}

@@ -53,6 +53,9 @@ last screen also stays until a key is pressed.
 ## Talk track: the app story
 
 Times are medians of three unattended runs on a `*.beams.sh` tenant, Teleport 18.11.2.
+They predate 0.9.0, where creating a Beam also installs this plugin on it so its
+keybindings work while it is the selected machine: step 2 and the total are a little
+longer now, and the new number is pending in [measurements](../docs/measured.md).
 
 **1. Where we start (1 s).** The audience sees the Beam list and the machine list,
 both empty. "Everything you are about to see is created from nothing and gone at the

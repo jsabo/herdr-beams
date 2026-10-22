@@ -227,3 +227,50 @@ setup() { setup_fakes; }
   [ -z "$(ls -A "$TMPDIR")" ]
   ! grep -q 'agent start' "$FAKE_LOG"
 }
+
+# ---- on the Beam itself ----------------------------------------------------
+#
+# What a keybinding pressed while that Beam is selected does: the Beam's own
+# herdr publishes the key and runs the script, so there is no Beam to pick, no
+# --machine forwarding and no SSH.
+
+@test "agent, in a Beam: starts the agent through the Beam's own herdr, with no --machine and no ssh" {
+  run_in_beam beam-agent.sh api "Read SPEC.md and start." </dev/null
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"workspace api on alpha-one, pane w9:p1"* ]]
+  [[ "$output" == *"claude is ready as agent claude"* ]]
+  calls_in_order \
+    "herdr integration install claude" \
+    "herdr workspace create --cwd ~ --label api --no-focus" \
+    "herdr agent start claude --kind claude --pane w9:p1 -- --dangerously-skip-permissions" \
+    "herdr agent prompt claude Read SPEC.md and start."
+  ! grep -q "^herdr --machine" "$FAKE_LOG"
+  ! grep -q "^ssh" "$FAKE_LOG"
+  ! grep -q "beams ls" "$FAKE_LOG"
+}
+
+@test "agent, in a Beam: the workspace still has no focus, so done survives" {
+  run_in_beam beam-agent.sh api </dev/null
+  [ "$status" -eq 0 ]
+  grep -q "^herdr workspace create --cwd ~ --label api --no-focus$" "$FAKE_LOG"
+}
+
+@test "agent, in a Beam: the first argument is the workspace label, not a Beam id" {
+  run_in_beam beam-agent.sh </dev/null
+  [ "$status" -eq 0 ]
+  grep -q -- "--label work --no-focus" "$FAKE_LOG"
+  [[ "$output" == *"workspace work on alpha-one"* ]]
+}
+
+@test "agent, in a Beam: the card tells you to drive it without --machine" {
+  run_in_beam beam-agent.sh api </dev/null
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"watch it:   herdr agent read claude"* ]]
+  [[ "$output" != *"herdr --machine"* ]]
+}
+
+@test "agent, in a Beam: a profile still decides the harness and its arguments" {
+  run_in_beam beam-agent.sh --profile claude-opus api </dev/null
+  [ "$status" -eq 0 ]
+  grep -q "^herdr agent start claude --kind claude --pane w9:p1 -- --model " "$FAKE_LOG"
+}

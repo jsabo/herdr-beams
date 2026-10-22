@@ -61,6 +61,9 @@ On the machine running the plugin:
   Bash 4+ from PATH or the standard Apple Silicon / Intel Homebrew locations.
 - `tsh` 18.11+ and access to a Teleport Beams tenant.
 - The selected agent CLI available in the Beam image.
+- Outbound access from the Beam to GitHub, and `git` in the Beam image, because
+  each Beam installs this plugin itself so the keybindings work while it is the
+  selected machine. `herdr plugin install` checks the repository out with `git`.
 
 Log in and configure SSH once, replacing `<tenant>` with your tenant:
 
@@ -127,7 +130,8 @@ paths.
 ## Quick start
 
 1. **Create a Beam:** `herdr plugin action invoke herdr-beams.new`. The popup
-   installs herdr on the Beam and adds `beam/<id>` to the sidebar.
+   installs herdr and this plugin on the Beam, so the keybindings work while the
+   Beam is selected, and adds `beam/<id>` to the sidebar.
 2. **Launch an agent:** `herdr plugin action invoke herdr-beams.profiles`. Choose
    a profile, Beam, workspace label, and first prompt. Match profile model IDs to
    your tenant's aliases first; see [Agent profiles](#agent-profiles).
@@ -160,7 +164,14 @@ Run any action with `herdr plugin action invoke herdr-beams.<action>`.
 | `publish` | Publish port 8080 through Teleport over HTTPS or TCP. |
 | `rm` | Delete one Beam, then remove its sidebar entry after successful deletion. |
 | `rm-all` | Delete Beams in order, saving progress; stop on failure and retain entries for undeleted Beams. |
+| `keys` | Install the plugin and its key block on an existing Beam, so the keys work while that Beam is selected. `new` does this for Beams it creates. |
 | `demo` | Run the guided build-and-publish walkthrough. |
+
+`agent`, `profiles`, `claude`, `codex`, `status`, `services` and `publish` also run
+on a Beam, where they act on that Beam; see
+[Keybindings while a Beam is selected](#keybindings-while-a-beam-is-selected).
+`new`, `rm`, `rm-all`, `keys` and `demo` are laptop-only and say so if invoked on a
+Beam.
 
 Expired Beam entries are removed from the sidebar when a popup opens. Failures stay
 visible until a key is pressed. The sidebar shows reachability and agent state;
@@ -168,40 +179,119 @@ launch popups finish without waiting for the agent.
 
 ## Keybindings
 
-Add bindings to `~/.config/herdr/config.toml`, then run `herdr server reload-config`:
+**One rule: the prefix, then Shift and the first letter of the thing.** `prefix`
+defaults to `ctrl+b`, which you press and release before the next key.
+
+| Key | Action | Letter |
+| --- | --- | --- |
+| `ctrl+b` `Shift+B` | new Beam | **B**eam |
+| `ctrl+b` `Shift+C` | Claude in a Beam | **C**laude |
+| `ctrl+b` `Shift+O` | Codex in a Beam | **O**penAI |
+| `ctrl+b` `Shift+A` | pick an agent profile | **A**gent |
+| `ctrl+b` `Shift+S` | status | **S**tatus |
+| `ctrl+b` `Shift+L` | services and their logs | **L**ogs |
+| `ctrl+b` `Shift+E` | publish port 8080 | **E**xpose |
+| `ctrl+b` `Shift+K` | delete one Beam | **K**ill |
+| `ctrl+b` `Shift+Q` | delete every Beam | **Q**uit the lot |
+
+`demo` and `keys` get no key: one is a walkthrough you start deliberately, the other
+a one-off repair. Invoke both with `herdr plugin action invoke herdr-beams.<action>`.
+
+Copy the whole block into `~/.config/herdr/config.toml` and run
+`herdr server reload-config`. It is the same block each Beam gets, which is
+`config/beam-keys.toml` in this repository.
 
 ```toml
 [[keys.command]]
 key = "prefix+shift+b"
 type = "plugin_action"
 command = "herdr-beams.new"
-description = "new Beam"
+description = "new Beam (laptop only)"
 
 [[keys.command]]
-key = "prefix+a"
+key = "prefix+shift+c"
+type = "plugin_action"
+command = "herdr-beams.claude"
+description = "launch Claude in this Beam"
+
+[[keys.command]]
+key = "prefix+shift+o"
+type = "plugin_action"
+command = "herdr-beams.codex"
+description = "launch Codex in this Beam"
+
+[[keys.command]]
+key = "prefix+shift+a"
 type = "plugin_action"
 command = "herdr-beams.profiles"
-description = "launch an agent in a Beam"
+description = "choose an agent profile for this Beam"
 
 [[keys.command]]
-key = "prefix+s"
+key = "prefix+shift+s"
 type = "plugin_action"
 command = "herdr-beams.status"
-description = "Beam status"
+description = "this Beam's status"
 
 [[keys.command]]
-key = "prefix+d"
+key = "prefix+shift+l"
+type = "plugin_action"
+command = "herdr-beams.services"
+description = "this Beam's services and their logs"
+
+[[keys.command]]
+key = "prefix+shift+e"
+type = "plugin_action"
+command = "herdr-beams.publish"
+description = "expose port 8080 of this Beam"
+
+[[keys.command]]
+key = "prefix+shift+k"
 type = "plugin_action"
 command = "herdr-beams.rm"
-description = "remove a Beam"
+description = "delete a Beam (laptop only)"
+
+[[keys.command]]
+key = "prefix+shift+q"
+type = "plugin_action"
+command = "herdr-beams.rm-all"
+description = "delete every Beam (laptop only)"
 ```
 
-`prefix` defaults to `ctrl+b`: press and release it, then press the next key.
-Use `herdr-beams.claude` or `herdr-beams.codex` for direct launch bindings.
+### Why those letters, if you change them
 
-**Select Local in the sidebar before using a plugin keybinding.** herdr sends the
-binding to the selected machine's server; Beams do not have the local plugin.
-Running `herdr plugin action invoke ...` from a local shell reaches the local server.
+Keep off herdr's own keys. A custom command claims its key before herdr parses its
+defaults, and the colliding default is then dropped with no warning
+(`src/config/keybinds.rs:651` and `:1099-1102` in herdr 0.9.x), so the plugin's
+binding works and you quietly lose a herdr action instead. `herdr --default-config`
+lists the defaults and `ctrl+b` then `?` shows what is live on the selected machine.
+
+Taken already, after the prefix: `?` `s` `q` `o` `w` `g` `c` `p` `n` `e` `v` `x` `z`
+`r` `b` `h` `j` `k` `l` `-` `tab` `1`–`9`, and shifted `R` `N` `G` `W` `D` `T` `X`
+`P`. Only `a d f i m t u y` are free unshifted, which is why the set is shifted
+throughout. `Shift+D` is the obvious key for delete and is herdr's close-workspace,
+hence `Shift+K` for kill.
+
+### Keybindings while a Beam is selected
+
+The same nine keys work whichever machine is selected, and what they act on
+follows where you are. herdr rebuilds the live keymap from the selected machine's
+own server every time you switch machines, so a key pressed while a Beam is
+selected can only come from that Beam's herdr; the plugin is therefore installed on
+each Beam as well, with the same block, and `new` does that while creating it.
+
+| Pressed while Local is selected | Pressed while a Beam is selected |
+| --- | --- |
+| `Shift+C`, `Shift+O`, `Shift+A` ask which Beam to launch in | They launch in the Beam you are looking at |
+| `Shift+S` lists the fleet; `Shift+L` and `Shift+E` ask which Beam | They report, list and publish that one Beam |
+| `Shift+B`, `Shift+K`, `Shift+Q` create and delete Beams | They say they belong on the laptop and change nothing |
+
+Creating and deleting Beams stays on the laptop, because it needs your own
+Teleport login and only the laptop's herdr owns the machines rail. `ctrl+b` then
+`g` opens the machine list: pick Local, then press the key again.
+
+For a Beam created before plugin 0.9.0, run
+`herdr plugin action invoke herdr-beams.keys` once. Running
+`herdr plugin action invoke ...` in a shell always reaches that host's own server.
 
 ## Configuration
 
@@ -222,6 +312,8 @@ authoritative path.
 | `env` | Configuration directory | You, during setup | Tenant and default profile choices |
 | `profiles.json` | Configuration directory | You, optionally | Additional profiles or replacements for bundled profiles |
 | `profiles/defaults.json` | Installed plugin checkout | Supplied with the plugin | View only; updates replace it |
+| `env` | The same configuration directory **on each Beam** | The plugin, when it sets the Beam up | Nothing; it is rewritten from your laptop's settings, plus `BEAM_SELF_ID` and `BEAM_SELF_UUID` |
+| `config.toml` | `~/.config/herdr` **on each Beam** | The plugin appends one block to it | Nothing; the block starts at `# herdr-beams-keys`, and removing it takes the keys off that Beam |
 
 You do not need a custom `profiles.json` to use the four bundled profiles.
 Multiple GitHub installation directories can remain after updates; edit the
@@ -252,12 +344,15 @@ for the generic `agent` action and the agent offered after `new`; dedicated
 Claude/Codex actions have their own defaults below.
 
 `env` is a Bash file sourced by the plugin. Use `NAME=value` assignments and quote
-values containing spaces. Keep this file on your laptop, not inside a Beam.
+values containing spaces. Edit the copy on your laptop; the copy the plugin writes
+on each Beam is derived from it and is rewritten on the next setup.
 
 ### Choose a bundled profile
 
-Select **Local** in herdr, then open the picker with **Prefix → A** if you installed
-[the example binding](#keybindings), or run this from your local shell:
+Open the picker with `ctrl+b` `Shift+A` if you installed
+[the recommended keys](#keybindings), or run this from your local shell. With Local
+selected the picker asks which Beam to launch in; with a Beam selected it launches
+in that Beam:
 
 ```sh
 herdr plugin action invoke herdr-beams.profiles
@@ -401,6 +496,8 @@ trailing commas. The [profile reference](docs/profiles.md) lists supported value
 | `BEAM_LOGIN` | `beams` | SSH login on the Beam |
 | `BEAM_LABEL_PREFIX` | `beam/` | Sidebar label prefix; existing registrations are resolved by UUID |
 | `BEAMS_YES` | Unset | Keybinding actions set `1` to skip their create/delete confirmations; set `0` in `env` to retain those confirmations |
+| `BEAM_PLUGIN_SOURCE` | `jsabo/herdr-beams` | The repository a Beam installs this plugin from, so its keybindings work; point it at a fork to try one on a Beam |
+| `BEAM_SELF_ID`, `BEAM_SELF_UUID` | Unset | Written by the plugin into a Beam's own `env`, never on the laptop; they are how a script knows it is running in that Beam |
 | `BEAM_AGENT_KIND` | `claude` | Legacy harness when no profile is selected |
 | `BEAM_AGENT_ARGS` | `--dangerously-skip-permissions` | Legacy whitespace-separated arguments when no profile is selected |
 
@@ -449,13 +546,22 @@ Recorded timings and versions are in [measurements](docs/measured.md).
 - In the tested beta, delegated identities cannot reissue certificates. Use plain
   database clients over VNet for supported engines; `tsh db connect` and
   `tsh kube login` fail in that environment. See [architecture](docs/architecture.md).
-- The plugin runs as your local user and installs herdr remotely when needed.
+- The plugin runs as your local user and installs herdr remotely when needed. It
+  also installs itself on each Beam and appends one block to that Beam's
+  `~/.config/herdr/config.toml`, which is what makes the keybindings work while
+  the Beam is selected. Nothing runs in the other direction: a Beam cannot create
+  or delete Beams, and cannot change your laptop's sidebar.
   Review [SECURITY.md](SECURITY.md) and the scripts before installing.
 
 ## Troubleshooting
 
-- **Keybinding does nothing:** select Local, check the plugin action ID, and reload
-  herdr's config. Try the equivalent `herdr plugin action invoke` command.
+- **Keybinding does nothing:** press `ctrl+b` then `?` to see what herdr has live
+  for the selected machine. With Local selected, check the action ID and reload the
+  config. With a Beam selected, the keys come from that Beam: run
+  `herdr plugin action invoke herdr-beams.keys` for a Beam created before 0.9.0,
+  and remember that `Shift+B`, `Shift+K` and `Shift+Q` are laptop-only. A key that
+  is also a herdr default does reach the plugin, and takes that herdr action away
+  instead, so check `herdr --default-config` if a herdr key stopped working.
 - **Cannot list Beams:** check `BEAMS_PROXY` and log in with
   `TELEPORT_CLUSTER= tsh login --proxy=<tenant>.beams.sh`.
 - **Beam exists without a sidebar entry:** the popup gives its ID and removal
@@ -478,6 +584,20 @@ Check the expiry of any remaining Beams with `tsh beams ls`. Remove leftover
 sidebar entries with
 `herdr machine remove <profile-id>`. To delete saved settings, get their path with
 `herdr plugin config-dir herdr-beams` and remove that directory.
+
+The copy of the plugin on a Beam goes away with the Beam, within 24 hours. To take
+it off a Beam you are keeping, disable it there and delete the key block:
+
+```sh
+herdr --machine beam/<id> plugin disable herdr-beams
+ssh beams@<uuid>.<tenant>.beams.sh "sed -i '/^# herdr-beams-keys\$/,\$d' ~/.config/herdr/config.toml"
+herdr --machine beam/<id> server reload-config
+```
+
+The plugin appends its block at the end, so that `sed` deletes from the
+`# herdr-beams-keys` marker to the end of the file. Move anything you added after
+the block first. `--machine` forwards only API-backed commands, which is why this
+disables the plugin rather than uninstalling it.
 
 ## Development
 
