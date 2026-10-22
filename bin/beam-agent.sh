@@ -181,21 +181,17 @@ fi
 herdr_at "$machine" agent start "$agent" --kind "$AGENT_KIND" --pane "$pane" -- "${AGENT_ARGS[@]}" >/dev/null
 phase "$AGENT_KIND is ready as agent $agent"
 
-# The harness's own name, for a sidebar row to show. A row template reads it as
-# `{ token = "harness" }` (herdr resolves an unknown token name from the pane's
-# reported tokens). Claude Code sets a terminal title herdr can show instead;
-# Codex leaves the shell's, so without this its row has nothing where Claude's
-# has a line. Display-only: a failure must not touch a running agent.
+# Which agent is in this workspace, for the machines rail to show. A space row
+# has no agent token at all — its vocabulary is state_icon, state_text,
+# workspace, branch and git_status — so the only herdr-native way to name what
+# is running in a workspace is a token the plugin reports on it, read back as
+# `{ token = "$agent" }` (herdr docs, configuration.mdx "Sidebar row layouts").
+# Display-only: a failure must not touch a running agent.
 #
-# The label and the first prompt are independent calls to the Beam's herdr, so
-# they run at once (docs/measured.md: about 0.9 s each when forwarded).
-case "$AGENT_KIND" in
-  claude) harness="Claude Code" ;;
-  codex)  harness="OpenAI Codex" ;;
-  *)      harness="$AGENT_KIND" ;;
-esac
-herdr_at "$machine" pane report-metadata "$pane" \
-  --source herdr-beams --token "harness=$harness" >/dev/null 2>&1 &
+# This and the first prompt are independent calls to the Beam's herdr, so they
+# run at once (docs/measured.md: about 0.9 s each when forwarded).
+herdr_at "$machine" workspace report-metadata "$workspace" \
+  --source herdr-beams --token "agent=$agent" >/dev/null 2>&1 &
 label_pid=$!
 
 if [ -n "$prompt" ]; then
@@ -203,7 +199,7 @@ if [ -n "$prompt" ]; then
   phase "prompt sent; the agent list shows $agent as working"
 fi
 
-wait "$label_pid" || off "could not label $agent as $harness in the sidebar"
+wait "$label_pid" || off "could not name $agent in the machines rail"
 [ -z "$rename_pid" ] || wait "$rename_pid" || off "workspace $label kept the label it was created with"
 
 printf '\n'
