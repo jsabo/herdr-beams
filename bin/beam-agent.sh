@@ -176,6 +176,13 @@ if [ "$AGENT_KIND" = codex ]; then
   herdr_at "$machine" pane run "$pane" \
     'codex() { unset -f codex; printf "\033[H\033[2J\033[3J"; HERDR_AGENT=codex command codex "$@"; }' >/dev/null \
     || die "could not prepare Codex process detection in pane $pane; no agent was launched"
+  # Ask Codex for the label it already writes, so its agent row reads like a
+  # Claude row. Codex sets a terminal title, but its default items are
+  # `activity` and `project-name`, which on a Beam is the home directory name
+  # and says nothing (docs/measured.md). `thread-title` is the title Codex
+  # generates from the first prompt. It goes here rather than in a profile so
+  # every launch carries it, including the legacy BEAM_AGENT_ARGS path.
+  AGENT_ARGS+=(-c 'tui.terminal_title=["activity","thread-title"]')
 fi
 
 herdr_at "$machine" agent start "$agent" --kind "$AGENT_KIND" --pane "$pane" -- "${AGENT_ARGS[@]}" >/dev/null

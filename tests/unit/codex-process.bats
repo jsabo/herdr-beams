@@ -39,6 +39,20 @@ CODEX
   [ "$output" = '^[[H^[[2J^[[3J' ]
 }
 
+@test "codex process: asks Codex for the title its agent row shows" {
+  # Codex generates a short title from the first prompt but does not put it in
+  # the terminal title by default: its default items are the activity spinner
+  # and the project name, which on a Beam is the home directory (measured.md).
+  run_script beam-codex.sh alpha-one review
+  [ "$status" -eq 0 ]
+  grep -q 'agent start codex .* -c tui.terminal_title=\["activity","thread-title"\]$' "$FAKE_LOG"
+  # One row layout covers both harnesses, so Claude must not carry it: Claude
+  # Code writes its own title and the flag is not a Claude flag.
+  run_script beam-claude.sh alpha-one review
+  [ "$status" -eq 0 ]
+  [ "$(call_count 'tui.terminal_title')" -eq 1 ]
+}
+
 @test "codex process: names the agent on its workspace, after the launch" {
   run_script beam-codex.sh alpha-one review
   [ "$status" -eq 0 ]

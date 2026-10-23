@@ -525,21 +525,21 @@ say what is running where.
 
 herdr's own defaults put the location on the first row and the agent under it,
 which is what keeps a long machine label from pushing everything else out of view.
-This layout follows them, adds the plugin's token to the machines rail, and hides
-two things that say nothing: the `Local` machine label, and Claude Code's terminal
-title while it still reads `Claude Code`.
+This layout follows them and adds the plugin's token to the machines rail.
+
+One layout covers both harnesses, because both label their own work in the
+terminal title: Claude Code writes its current task, and Codex writes the short
+title it generates from the first prompt, which a Codex launch asks for with
+`tui.terminal_title` (its own default would show the home directory name; see
+[measured](docs/measured.md)). Three values are hidden because they say
+nothing: the `Local` machine label, Claude Code's title while it still reads
+`Claude Code`, and the thread id Codex shows until that title arrives.
 
 ```toml
 [ui.sidebar.agents]
 rows = [
   ["state_icon", "workspace", "tab"],
-  [{ token = "machine", rules = [{ equals = "Local", hide = true }] }, "agent"],
-]
-
-[ui.sidebar.agents.rows_by_agent]
-claude = [
-  ["state_icon", "workspace", "tab"],
-  [{ token = "terminal_title_stripped", dim = true, rules = [{ equals = "Claude Code", hide = true }] }],
+  [{ token = "terminal_title_stripped", dim = true, rules = [{ equals = "Claude Code", hide = true }, { starts_with = "01", hide = true }] }],
   [{ token = "machine", rules = [{ equals = "Local", hide = true }] }, "agent"],
 ]
 
@@ -557,7 +557,14 @@ machines                      agents
 ▾ beam/retro-rover            ○ work · claude-2
   ○ work · claude-2             reviewing the API
   ○ work-2 · codex              beam/retro-rover · claude-2
+                              ○ work-2 · codex
+                                Glens Falls weather check
+                                beam/retro-rover · codex
 ```
+
+herdr's rules take `equals`, `contains`, `starts_with`, `gt` and `lt`, but no
+regex, so `starts_with = "01"` is what hides a thread id: it is the first two
+characters of every v7 UUID minted this decade.
 
 The `$` is herdr's marker for a token a plugin reported rather than one of its own;
 the reported name carries no `$`. A token with no value drops itself and its
