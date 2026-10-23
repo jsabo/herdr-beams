@@ -131,12 +131,12 @@ agents launched by the `agent` pane:
   the escape sequence instead.
 - **The agent row's third line is the user's row config, not a herdr detection.**
   Measured on the live Beam: Claude Code sets a terminal title (`✳ Claude Code`,
-  then its current task), Codex leaves the shell's (`beams`). A row template
-  showing `terminal_title_stripped` therefore reads well for Claude and badly for
-  Codex, and `display_agent` is the wrong field to reach for: it feeds the row's
-  *first* line, where the agent name goes
-  (`src/client/shell/agent_sidebar.rs:275-280`), and setting it replaced `codex`
-  with a truncated `OpenAI C…`.
+  then its current task), and the Codex pane's title read `beams`. The reason
+  for that `beams` is below (2026-10-23) and is not "Codex leaves the shell's
+  title", which this entry first claimed. `display_agent` is the wrong field to
+  reach for either way: it feeds the row's *first* line, where the agent name
+  goes (`src/client/shell/agent_sidebar.rs:275-280`), and setting it replaced
+  `codex` with a truncated `OpenAI C…`.
 - **A plugin-reported token is the field that works.**
   `herdr pane report-metadata --source herdr-beams --token harness=...` sets it,
   a row reads it as `{ token = "$harness" }`, and herdr resolves an unknown token
@@ -149,8 +149,9 @@ agents launched by the `agent` pane:
 
 ## What the sidebar can show, and herdr's own defaults (read 2026-10-22, herdr 0.9.5)
 
-- **The shipped row layouts**, which this plugin's README now follows:
-  agents `[["state_icon", "machine", "workspace", "tab"], ["agent"]]`, with
+- **The shipped row layouts**, which this plugin's README follows except that it
+  gives both harnesses the title row (2026-10-23 below): agents
+  `[["state_icon", "machine", "workspace", "tab"], ["agent"]]`, with
   `claude` overridden to put `terminal_title_stripped` between those two rows;
   spaces `[["state_icon", "workspace"], ["branch", "git_status"]]`
   (`src/config/sidebar.rs:440-476`, and `herdr --default-config`). The location
@@ -175,6 +176,53 @@ agents launched by the `agent` pane:
 - Token limits: a reported value is trimmed to 80 characters, keys are
   `[A-Za-z0-9_-]` up to 32 characters, 16 keys per report and 32 per resource
   (`src/app/api_helpers.rs:205-275`). Tokens do not survive a server restart.
+
+## The Codex agent row's headline (2026-10-23, codex-cli 0.152.1, herdr 0.9.5)
+
+The `beams` recorded above is Codex's own terminal title, not the shell's. Read
+in the Codex source at the Beam's version, tag `rust-v0.152.1`:
+
+- **Its default title items say nothing on a Beam.**
+  `DEFAULT_TERMINAL_TITLE_ITEMS = ["activity", "project-name"]`
+  (`codex-rs/tui/src/chatwidget/status_surfaces.rs:27`). `project-name` for
+  `/home/beams` is `beams`, and `activity` is a braille spinner frame.
+- **Codex already generates the label we want.** On the first user message in an
+  unnamed thread it runs a hidden turn for a thread title, capped at 36
+  characters and prompted for "under five words where possible"
+  (`codex-rs/tui/src/app/thread_title.rs:22,219`, fired from
+  `codex-rs/tui/src/app/thread_routing.rs:2046-2075`). The item that shows it is
+  `thread-title`; the `thread-name` item that upstream `main` has since added to
+  the default does not exist here
+  (`codex-rs/tui/src/bottom_pane/title_setup.rs:32-93`).
+- **`-c` values parse as TOML**, arrays included
+  (`codex-rs/utils/cli/src/config_override.rs:21-36`), so a launch can ask for
+  the items it wants without writing config on the Beam.
+
+Measured on the live Beam with `herdr --machine beam/<id> agent list`, one
+Claude agent and two Codex agents, the second launched after the change:
+
+| agent | `terminal_title` | `terminal_title_stripped` |
+|---|---|---|
+| `claude` | `✳ Weather in Glens Falls, NY` | `Weather in Glens Falls, NY` |
+| `codex` (before) | `beams` | `beams` |
+| `codex-2` (after) | `Check weather in GF NY` | `Check weather in GF NY` |
+
+- **Neither row shows a spinner.** herdr strips one leading `U+2800`–`U+28FF`
+  frame (Codex's) or one of Claude's `✳ ✢ ✻ ◐ ◓` glyphs when whitespace follows
+  (`herdr/src/terminal/title.rs:12-15`).
+- **An unnamed thread puts its id in that title**: `thread-title` falls back to
+  the thread UUID (`status_surfaces.rs:776-786`; read in the source, not caught
+  live). herdr's row rules have no regex — `equals`, `contains`, `starts_with`,
+  `gt`, `lt`, with `ignore_case`
+  (`herdr/src/config/sidebar/rules.rs:17-24`) — so `{ starts_with = "01",
+  hide = true }` is what hides a v7 UUID minted this decade without hiding a
+  real title.
+- **What is still not parity.** Claude Code rewrites its title as the work
+  changes; Codex names a thread once, because the trigger requires
+  `thread_name().is_none()` (`thread_routing.rs:2046`). Turn five shows the
+  label from turn one. A per-turn Codex line would need a `Stop` or
+  `UserPromptSubmit` hook reporting a token, which costs a hook file on every
+  Beam and a second `hooks.state` trust entry on the launch path.
 
 ## Glyphs for the harnesses (2026-10-22)
 

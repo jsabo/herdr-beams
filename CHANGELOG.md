@@ -9,6 +9,7 @@
 - Make a Codex pane read like a Claude pane: the detection hint now clears the pane before Codex starts, since Codex draws inline and left the shell prompt and launch command above its header while Claude Code clears the screen itself.
 - Keep workspace labels distinct on a Beam: a launch whose label is already in use takes the next free `-<n>`, so two rows no longer read the same. The listing that decides it runs alongside the create and the correction is a background rename, so a launch costs no more than before.
 - Name each agent on its workspace, as a token called `agent`, so the machines rail can say what is running where: a space row has no agent token of its own. The report runs alongside the first prompt and never fails a running agent. This replaces the `harness` pane token from earlier in this unreleased version, whose only consumer was an agent row that herdr's own defaults say better.
+- Give a Codex agent row the headline a Claude row has. Codex already generates a short title from the first prompt, but its default terminal title is the activity spinner and the project name, which on a Beam is the home directory name. Every Codex launch now asks for `tui.terminal_title=["activity","thread-title"]`, so one row layout covers both harnesses and the `rows_by_agent` block in the README's recommended config is gone.
 - Report a failed publish instead of exiting on `tsh`'s status alone, and name the laptop when the refusal may be the Beam's delegated identity.
 
 ## 0.8.7 (unreleased)
