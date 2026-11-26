@@ -65,9 +65,17 @@ the startup hook, and uses it three ways:
 - **`--model <id>`.** `beam-agent.sh` and `beam-new.sh` accept it after the profile
   flag. It replaces the profile's model for one launch and is checked the same way.
 
-When no listing is possible (not logged in, or a Beam's delegated identity refusing
-the call), launches go ahead unchecked and print that they did. The legacy
-unprofiled launch is never checked: its model, if any, is inside `BEAM_AGENT_ARGS`.
+The listing works on the laptop and inside a Beam under its delegated identity
+(docs/measured.md). When no listing is possible (not logged in, or a tenant whose
+roles do not grant the apps), launches go ahead unchecked and print that they did.
+The legacy unprofiled launch is never checked: its model, if any, is inside
+`BEAM_AGENT_ARGS`.
+
+Claude Code adds a second list of its own. The Beam image's `~/.claude/settings.json`
+sets `availableModels`, and Claude Code replaces any other model with an allowed one,
+printing `Model "<name>" is restricted by your organization's settings. Using <model>
+instead.` A model the tenant's app serves but that list omits therefore runs as a
+different model. Read the agent's header to confirm which model answered.
 
 The check covers what the proxy accepts, not what the harness supports. Codex
 can be pointed at non-OpenAI models the `openai` app serves (such as `zai.glm-5`)

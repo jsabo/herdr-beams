@@ -94,10 +94,14 @@
   The plugin has already re-read the list once, so a model added in the last few
   minutes is not the cause.
 - **A launch says "could not read the model list ... unchecked".** `tsh apps ls`
-  failed: on the laptop, log in again; inside a Beam, the delegated identity may not
-  allow the listing. The launch still runs; a wrong model then fails in the agent's
-  pane with "requested model ... is not supported. Use one of the allowed models
-  instead: ...", which names the valid choices.
+  failed: on the laptop, log in again; on any machine, check that your roles grant
+  the tenant's inference apps. The launch still runs; a wrong model then fails in
+  the agent's pane with "requested model ... is not supported. Use one of the
+  allowed models instead: ...", which names the valid choices.
+- **Claude Code says a model "is restricted by your organization's settings".**
+  The Beam image allows only the models in its `availableModels` list, and Claude
+  Code ran the named replacement instead. Launch one of the models that message
+  names; the plugin cannot widen that list.
 - **Codex reports missing model metadata.** A model alias can return responses
   without a matching Codex catalog entry. Check that the configured inference
   endpoint and installed Codex expose metadata for your selected alias. The plugin

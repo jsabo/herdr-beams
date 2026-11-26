@@ -95,7 +95,7 @@ teardown_file() {
   [[ "$output" == *"herdr-beams"* ]]
 }
 
-@test "live: a Beam-side action starts an agent in that Beam, as its keybinding would" {
+@test "live: a Beam-side action opens its popup on that Beam's own herdr, as its keybinding would" {
   id="$(new_beam)"
   machine="$(machine_of "$id")"
   # The Beam installs the published plugin, not this checkout, so this only
@@ -103,17 +103,44 @@ teardown_file() {
   actions="$(herdr --machine "$machine" plugin action list)"
   grep -q '"action_id":"keys"' <<<"$actions" \
     || skip "the Beam installed a plugin older than 0.9.0; push this branch to test the Beam-side action"
-  before="$(herdr --machine "$machine" agent list | jq '.result.agents | length')"
   # This is the keybinding path: the action runs on the Beam's own server, from
-  # the plugin installed there, with no laptop script involved.
+  # the plugin installed there, with no laptop script involved. It opens the
+  # popup, which then waits for its workspace label: a person answers it, so
+  # the action's own success is what this can check (measured 2026-11-26).
   run herdr --machine "$machine" plugin action invoke herdr-beams.claude
   [ "$status" -eq 0 ]
-  for _ in $(seq 1 30); do
-    after="$(herdr --machine "$machine" agent list | jq '.result.agents | length')"
-    [ "$after" -gt "$before" ] && break
-    sleep 2
+  log_id="$(jq -r '.result.log.log_id' <<<"$output")"
+  for _ in $(seq 1 15); do
+    entry="$(herdr --machine "$machine" plugin log list --plugin herdr-beams \
+      | jq -c --arg l "$log_id" '.result.logs[] | select(.log_id == $l)')"
+    [ "$(jq -r .status <<<"$entry")" != running ] && break
+    sleep 1
   done
-  [ "$after" -gt "$before" ]
+  [ "$(jq -r .status <<<"$entry")" = succeeded ]
+  [[ "$(jq -r .stdout <<<"$entry")" == *'"type":"ok"'* ]]
+}
+
+@test "live: the Beam's own plugin checks the model and launches Codex on a picked one" {
+  id="$(new_beam)"
+  machine="$(machine_of "$id")"
+  # The scripts a Beam-side key runs, from the copy herdr installed on the Beam,
+  # without a keyboard: the way an agent inside the Beam drives them.
+  # shellcheck disable=SC2016  # expanded on the Beam
+  run ssh -o BatchMode=yes "$(host_of "$id")" '
+    root="$(dirname "$(find ~/.config/herdr/plugins -path "*herdr-beams*/checkout/herdr-plugin.toml" | head -1)")"
+    cd "$root" || exit 9
+    export HERDR_BIN_PATH="$HOME/.local/bin/herdr"
+    if bash bin/beam-claude.sh --model anthropic.claude-opus-5 stale-model x </dev/null; then exit 8; fi
+    bash bin/beam-codex.sh --model openai.gpt-6-luna model-luna \
+      "What is 17 times 23? Reply with the number only. Do not run tools." </dev/null'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'anthropic.claude-opus-5 is not offered on'* ]]
+  agent="$(grep -o 'ready as agent [a-z0-9-]*' <<<"$output" | awk '{print $4}')"
+  [ -n "$agent" ]
+  [ "$(wait_done "$machine" "$agent")" = "done" ]
+  run herdr --machine "$machine" agent read "$agent" --lines 60
+  [[ "$output" == *391* ]]
+  [[ "$output" == *'GPT-6 Luna'* ]]
 }
 
 @test "live: services pane lists nothing on a fresh Beam, status shows it" {
@@ -124,6 +151,67 @@ teardown_file() {
   run bash bin/beam-status.sh </dev/null
   [ "$status" -eq 0 ]
   [[ "$output" == *"$id"*"in the sidebar"* ]]
+}
+
+# Wait for one named agent on a Beam to reach done; prints its last state.
+wait_done() {
+  local machine="$1" agent="$2" state=""
+  for _ in $(seq 1 60); do
+    state="$(herdr --machine "$machine" agent list \
+      | jq -r --arg a "$agent" '.result.agents[] | select(.name == $a) | .agent_status')"
+    [ "$state" = "done" ] && break
+    sleep 2
+  done
+  printf '%s' "$state"
+}
+
+@test "live: the tenant's model list is readable and offers every bundled profile's model" {
+  run bash -c '. bin/common.sh; fetch_models || exit 3
+    for p in claude-opus claude-sonnet codex-sol codex-terra; do
+      load_agent_profile "$p"; check_agent_model; printf "%s %s\n" "$p" "$AGENT_MODEL"
+    done'
+  [ "$status" -eq 0 ]
+  [[ "$output" != *unchecked* ]]
+  jq -e '(.harnesses.claude.choices | length > 0) and (.harnesses.codex.choices | length > 0)' \
+    "$HERDR_PLUGIN_STATE_DIR/models.json"
+}
+
+@test "live: a model the tenant does not offer stops before a workspace is created" {
+  id="$(new_beam)"
+  run bash bin/beam-agent.sh --profile claude-opus --model anthropic.claude-opus-5 "$id" stale-model </dev/null
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'anthropic.claude-opus-5 is not offered on'* ]]
+  run herdr --machine "$(machine_of "$id")" workspace list
+  [ "$status" -eq 0 ]
+  [[ "$output" != *stale-model* ]]
+}
+
+@test "live: Claude and Codex answer through the tenant with current models" {
+  id="$(new_beam)"
+  machine="$(machine_of "$id")"
+  # The answer is not in the prompt, so finding it proves the model replied.
+  for launch in "claude-opus" "codex-sol --model openai.gpt-6.2-sol"; do
+    read -r -a flags <<<"--profile $launch"
+    run bash bin/beam-agent.sh "${flags[@]}" "$id" "model-${flags[1]}" \
+      "What is 17 times 23? Reply with the number only. Do not run tools." </dev/null
+    [ "$status" -eq 0 ]
+    agent="$(grep -o 'ready as agent [a-z0-9-]*' <<<"$output" | awk '{print $4}')"
+    [ -n "$agent" ]
+    [ "$(wait_done "$machine" "$agent")" = "done" ]
+    run herdr --machine "$machine" agent read "$agent" --lines 60
+    [ "$status" -eq 0 ]
+    [[ "$output" == *391* ]]
+    [[ "$output" != *'is not supported'* ]]
+  done
+}
+
+@test "live: inside the Beam, the delegated identity can read the model list" {
+  id="$(new_beam)"
+  # shellcheck disable=SC1091
+  . "$HERDR_PLUGIN_CONFIG_DIR/env"
+  run ssh -o BatchMode=yes "$(host_of "$id")" "tsh --proxy=$BEAMS_PROXY apps ls -f json"
+  [ "$status" -eq 0 ]
+  [ "$(jq '[.[] | select(.sub_kind == "llm")] | length' <<<"$output")" -ge 2 ]
 }
 
 @test "live: rm deletes the Beam and its profile" {
