@@ -353,10 +353,34 @@ Measured from the laptop on a `*.beams.sh` tenant running Teleport
   profiles and `--model openai.gpt-6.2-sol`, and refused `anthropic.claude-opus-5`
   with the two Claude models on offer.
 
+The same day, on live Beams with the plugin at 0.10.0 (Claude Code v2.1.325,
+codex-cli 0.170.0), through `HERDR_BEAMS_INTEGRATION=1` and a second debug Beam:
+
+- **The listing works inside a Beam.** `tsh --proxy=<tenant> apps ls -f json`
+  under the delegated identity returned both inference apps, so the Beam-side
+  picker and launch check use the tenant's list rather than launching unchecked.
+- **The Beam's own plugin enforces it.** Run from the Beam's installed copy,
+  `beam-claude.sh --model anthropic.claude-opus-5` stopped with the two Claude
+  models on offer, and `beam-codex.sh --model openai.gpt-6-luna` started Codex,
+  whose footer read `GPT-6 Luna high`, and it answered.
+- **Each harness answers on a current model.** `claude-opus`
+  (`anthropic.claude-opus-5-5`) and `codex-sol --model openai.gpt-6.2-sol`, launched
+  from the laptop, both answered `391` to "What is 17 times 23?".
+- **Claude Code swaps a restricted model on its own.** The legacy launch path is
+  not checked, and `BEAM_AGENT_ARGS="... --model claude-opus-5"` still answered:
+  Claude Code printed `Model "claude-opus-5" is restricted by your organization's
+  settings. Using anthropic.claude-opus-5-5 instead.` and its header read `Opus 5.5`.
+  The restriction is `availableModels` in the image's `~/.claude/settings.json`. A
+  model the inference app serves but that list omits would be replaced the same
+  way, so for Claude that list, not the app's, has the last word.
+- **A Beam-side action waits for a person.** `plugin action invoke
+  herdr-beams.claude` on the Beam's herdr succeeded and opened the popup, which
+  then waited at its workspace label. A second invoke failed with `ui_busy: a popup
+  pane is already open`. The live test therefore checks the action's own result
+  and drives the launch through the Beam's installed scripts.
+
 Still to measure on a live Beam:
 
-- Whether `tsh apps ls` works inside a Beam under the delegated identity. The
-  Beam-side picker and launch check fall back to an unchecked launch if it does not.
 - Whether `tsh beams ls` and `tsh beams publish` work inside a Beam under the
   delegated identity. They are plain API calls, not certificate reissues, so they
   are expected to work, but `disallow-reissue` has only been mapped for the
