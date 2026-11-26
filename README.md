@@ -133,8 +133,8 @@ paths.
    installs herdr and this plugin on the Beam, so the keybindings work while the
    Beam is selected, and adds `beam/<id>` to the sidebar.
 2. **Launch an agent:** `herdr plugin action invoke herdr-beams.profiles`. Choose
-   a profile, Beam, workspace label, and first prompt. Match profile model IDs to
-   your tenant's aliases first; see [Agent profiles](#agent-profiles).
+   a profile, then one of your tenant's models (Enter keeps the profile's), a Beam,
+   a workspace label, and a first prompt. See [Choose a model](#choose-a-model).
 3. **Follow the work:** watch the sidebar, then open the agent's pane to read its
    output or answer approval prompts.
 4. **Clean up:** `herdr plugin action invoke herdr-beams.rm`. Save your work first;
@@ -157,7 +157,7 @@ Run any action with `herdr plugin action invoke herdr-beams.<action>`.
 | --- | --- |
 | `new` | Create a Beam, install herdr, and offer to launch an agent. |
 | `agent` | Launch the default agent in a new unfocused workspace; create a Beam if needed. |
-| `profiles` | Pick a harness, model, effort, and approval profile before launch. |
+| `profiles` | Pick a harness, effort, and approval profile, then one of the tenant's models, before launch. |
 | `claude` / `codex` | Launch the configured harness profile directly. |
 | `status` | Show sidebar registration, region, expiry, and SSH address. |
 | `services` | List `beamctl` services and optionally follow a service's logs. |
@@ -360,20 +360,41 @@ herdr plugin action invoke herdr-beams.profiles
 
 | Profile | Model | Effort | Permissions | Agent command networking |
 | --- | --- | --- | --- | --- |
-| `claude-opus` | `anthropic.claude-opus-5` | high | Normal Claude permission prompts | Controlled by Claude settings |
+| `claude-opus` | `anthropic.claude-opus-5-5` | high | Normal Claude permission prompts | Controlled by Claude settings |
 | `claude-sonnet` | `anthropic.claude-sonnet-5` | medium | Normal Claude permission prompts | Controlled by Claude settings |
-| `codex-sol` | `openai.gpt-5.6-sol` | high | On-request approval; workspace-write sandbox | Disabled in the sandbox |
-| `codex-terra` | `openai.gpt-5.6-terra` | medium | On-request approval; workspace-write sandbox | Disabled in the sandbox |
+| `codex-sol` | `openai.gpt-6.1-sol` | high | On-request approval; workspace-write sandbox | Disabled in the sandbox |
+| `codex-terra` | `openai.gpt-6.1-terra` | medium | On-request approval; workspace-write sandbox | Disabled in the sandbox |
 
 Claude's normal permission mode is not network isolation; existing Claude allow
 rules still apply. Codex's network setting restricts sandboxed commands, not the
 connection used for model inference. Approval modes ask when the harness requires
 approval, rather than before every action.
 
-These model IDs must be supported by your tenant's inference proxy. See the
-[profile reference](docs/profiles.md) for model verification and all field values.
 Profiles support `claude` and `codex`; other installed harnesses can run from a
-Beam shell but do not automatically appear in this picker.
+Beam shell but do not automatically appear in this picker. The
+[profile reference](docs/profiles.md) lists all field values.
+
+### Choose a model
+
+A profile's model is its default, not its only choice. Your tenant decides which
+models exist: each Beam reaches models through two Teleport inference apps,
+`anthropic` for Claude Code and `openai` for Codex, and each app refuses a model
+name that is not on its list. The plugin reads those lists with
+`tsh apps ls`, so a model your tenant adds shows up without a plugin update:
+
+- **The picker asks.** After you choose a profile, the `profiles` popup lists the
+  tenant's models for that harness. Enter keeps the profile's model; a number
+  launches that model with the profile's other settings.
+- **Every launch is checked first.** A model the tenant does not offer stops the
+  launch before any Beam or workspace is created, and the message lists what is
+  offered. Before this check, the refusal appeared inside the agent's pane.
+- **Scripts pass `--model`.** `bash bin/beam-agent.sh --profile codex-sol --model
+  openai.gpt-6.2-sol <beam-id> review` replaces only the model.
+
+The list is cached and refreshed when herdr starts, so a direct `claude` or `codex`
+launch costs no extra call. A model missing from the cache is checked once more
+against a fresh listing before the launch is refused. When the list cannot be read
+at all, the launch goes ahead unchecked and says so.
 
 ### Add custom Claude and Codex YOLO profiles
 
@@ -391,13 +412,13 @@ entries inside its existing outer object instead of replacing your other profile
 {
   "claude-yolo": {
     "harness": "claude",
-    "model": "anthropic.claude-opus-5",
+    "model": "anthropic.claude-opus-5-5",
     "effort": "high",
     "approval": "bypass"
   },
   "codex-yolo": {
     "harness": "codex",
-    "model": "openai.gpt-5.6-sol",
+    "model": "openai.gpt-6.1-sol",
     "effort": "high",
     "approval": "never",
     "sandbox": "danger-full-access"
@@ -436,7 +457,7 @@ workspace sandbox while allowing its commands to reach Teleport and repositories
 {
   "codex-sol": {
     "harness": "codex",
-    "model": "openai.gpt-5.6-sol",
+    "model": "openai.gpt-6.1-sol",
     "effort": "high",
     "approval": "on-request",
     "sandbox": "workspace-write",
@@ -582,6 +603,8 @@ From a checkout, launch an agent without interactive questions:
 
 ```sh
 bash bin/beam-agent.sh --profile codex-sol <beam-id> review "Review the API" </dev/null
+# The same profile with another of the tenant's models:
+bash bin/beam-agent.sh --profile codex-sol --model openai.gpt-6.2-sol <beam-id> review "Review the API" </dev/null
 ```
 
 Drive a running agent with herdr:
@@ -630,6 +653,9 @@ Recorded timings and versions are in [measurements](docs/measured.md).
   instead, so check `herdr --default-config` if a herdr key stopped working.
 - **Cannot list Beams:** check `BEAMS_PROXY` and log in with
   `TELEPORT_CLUSTER= tsh login --proxy=<tenant>.beams.sh`.
+- **"is not offered on <tenant>":** the profile names a model your tenant no
+  longer serves, often one a newer model replaced. Pick from the list in the
+  message with the `profiles` popup, or update the `model` in your `profiles.json`.
 - **Beam exists without a sidebar entry:** the popup gives its ID and removal
   command. Fix the reported cause; if herdr is installed, run
   `bash bin/beam-reconcile.sh` from the checkout to register it, or remove the Beam.

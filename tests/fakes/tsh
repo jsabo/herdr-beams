@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Fake tsh for unit tests. State lives in $FAKE_STATE, every call is appended
-# to $FAKE_LOG. Only the `beams` subcommands the plugin uses are implemented.
+# to $FAKE_LOG. Only the `beams` subcommands and the `apps ls` listing the
+# plugin uses are implemented.
 set -euo pipefail
 printf 'tsh %s\n' "$*" >> "$FAKE_LOG"
 
@@ -13,13 +14,22 @@ for a in "$@"; do
   esac
 done
 set -- "${args[@]}"
+
+logged_in() { [ ! -e "$FAKE_STATE/not-logged-in" ]; }
+
+# The tenant's applications, including the two inference apps whose
+# spec.inference.models is the model catalog.
+if [ "${1:-}" = apps ] && [ "${2:-}" = ls ]; then
+  logged_in || { echo "ERROR: not logged in" >&2; exit 1; }
+  [ ! -e "$FAKE_STATE/apps-fails" ] || { echo "ERROR: access denied" >&2; exit 1; }
+  cat "$FAKE_STATE/apps.json"
+  exit 0
+fi
 [ "${1:-}" = beams ] || { echo "fake tsh: unsupported: $*" >&2; exit 2; }
 shift
 cmd="${1:-}"
 shift || true
 beams="$FAKE_STATE/beams.json"
-
-logged_in() { [ ! -e "$FAKE_STATE/not-logged-in" ]; }
 
 case "$cmd" in
   ls)

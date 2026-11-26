@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.0 (unreleased)
+
+- Update the bundled models to ones every Beams tenant now serves: `claude-opus` uses `anthropic.claude-opus-5-5`, `codex-sol` uses `openai.gpt-6.1-sol` and `codex-terra` uses `openai.gpt-6.1-terra`. `anthropic.claude-opus-5`, `openai.gpt-5.6-sol` and `openai.gpt-5.6-terra` are no longer served, so those three profiles failed at the agent's first prompt.
+- Read the tenant's model catalog from its inference apps with `tsh apps ls`, cache it in the plugin's state directory, and refresh it in the startup hook alongside the registrations.
+- Ask for the model in the `profiles` popup after the profile, listing the tenant's models for that harness, with Enter keeping the profile's model. The listing runs while the profile question is open.
+- Check every profile launch's model against the catalog before any Beam or workspace is created, re-reading the list once on a miss, and name the models on offer when refusing. Launch unchecked, and say so, when the list cannot be read.
+- Add `--model <id>` to `beam-agent.sh` and `beam-new.sh` to replace a profile's model for one launch.
+
 ## 0.9.0 (unreleased)
 
 - Make the keybindings work while a Beam is the selected machine. herdr rebuilds the live keymap from the selected machine's own server on every switch, so each Beam now gets this plugin and a key block in its own herdr config: `new` installs both before the Beam's herdr server starts, the startup hook does it for Beams it registers, and the new `keys` action does it for a Beam created earlier.

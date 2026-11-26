@@ -52,6 +52,14 @@ bash "$ROOT/bin/beam-new.sh" </dev/null                       # new Beam, herdr 
 bash "$ROOT/bin/beam-agent.sh" <beam-id> <workspace-label> "<first prompt>" </dev/null
 ```
 
+To choose the harness and model, pass a profile and optionally a model, both before
+the Beam id: `beam-agent.sh --profile codex-sol --model openai.gpt-6.2-sol <beam-id>
+<label> "<prompt>"`. The model must be one the tenant serves; a launch with any other
+fails before creating anything, with `<model> is not offered on <tenant>; <harness>
+models: ...`. Retry with a name from that list; do not guess variants. The tenant's
+list is in `tsh --proxy=<tenant> apps ls -f json`, under each `sub_kind: llm`
+app's `spec.inference.models` (`anthropic` format for Claude, `openai` for Codex).
+
 `beam-agent.sh` needs a Beam that exists: with none it fails with `no Beams`, so run
 `beam-new.sh` first. An unknown Beam id fails with `no Beam named <id>` before anything
 runs. The script names agents after their kind (`claude`, then `claude-2`, ...) and

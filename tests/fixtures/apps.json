@@ -1,0 +1,54 @@
+[
+  {
+    "kind": "app",
+    "sub_kind": "llm",
+    "version": "v3",
+    "metadata": {"name": "anthropic", "labels": {"teleport.internal/beams/app-type": "llm"}},
+    "spec": {
+      "uri": "llm://",
+      "public_addr": "anthropic.example.beams.sh",
+      "inference": {
+        "format": "anthropic",
+        "provider": "bedrock",
+        "models": [
+          {"name": "claude-opus-5-5", "provider_name": "anthropic.claude-opus-5-5"},
+          {"name": "claude-sonnet-5", "provider_name": "anthropic.claude-sonnet-5"},
+          {"name": "anthropic.claude-opus-5-5"},
+          {"name": "anthropic.claude-sonnet-5"}
+        ]
+      }
+    }
+  },
+  {
+    "kind": "app",
+    "sub_kind": "llm",
+    "version": "v3",
+    "metadata": {"name": "openai", "labels": {"teleport.internal/beams/app-type": "llm"}},
+    "spec": {
+      "uri": "llm://",
+      "public_addr": "openai.example.beams.sh",
+      "inference": {
+        "format": "openai",
+        "provider": "bedrock",
+        "models": [
+          {"name": "gpt-6-luna", "provider_name": "openai.gpt-6-luna"},
+          {"name": "gpt-6.1-terra", "provider_name": "openai.gpt-6.1-terra"},
+          {"name": "gpt-6.2-sol", "provider_name": "openai.gpt-6.2-sol"},
+          {"name": "glm-5", "provider_name": "zai.glm-5"},
+          {"name": "gpt-6.1-sol", "provider_name": "openai.gpt-6.1-sol"},
+          {"name": "openai.gpt-6-luna"},
+          {"name": "openai.gpt-6.1-terra"},
+          {"name": "openai.gpt-6.2-sol"},
+          {"name": "zai.glm-5"},
+          {"name": "openai.gpt-6.1-sol"}
+        ]
+      }
+    }
+  },
+  {
+    "kind": "app",
+    "version": "v3",
+    "metadata": {"name": "grafana"},
+    "spec": {"uri": "http://localhost:3000", "public_addr": "grafana.example.beams.sh"}
+  }
+]

@@ -9,8 +9,10 @@ sandbox plugin code. This file says exactly what herdr-beams does so you can dec
 On your laptop, the scripts in `bin/` call only `tsh`, `ssh`, `jq`, coreutils and the
 running herdr (`$HERDR_BIN_PATH`):
 
-- `tsh --proxy=<BEAMS_PROXY> beams ls|add|rm|publish`. The proxy is always the tenant
-  you put in the plugin's `env` file; the active `tsh` profile is never assumed.
+- `tsh --proxy=<BEAMS_PROXY> beams ls|add|rm|publish`, and `tsh --proxy=<BEAMS_PROXY>
+  apps ls -f json` to read the tenant's model catalog from its inference apps. The
+  proxy is always the tenant you put in the plugin's `env` file; the active `tsh`
+  profile is never assumed.
 - `ssh beams@<uuid>.<tenant>` through your own SSH config, with `BatchMode=yes` and one
   shared connection per Beam (`ControlMaster`, socket under `/tmp/herdr-beams-*`).
 - `herdr machine add|rename|remove|list` and `herdr --machine <beam> …`.
@@ -30,7 +32,8 @@ On the Beam:
 - Your settings in `$(herdr plugin config-dir herdr-beams)/env`: the tenant name and,
   optionally, the SSH login, agent kind, agent arguments and default profiles.
 - Optional user profile overrides in the configuration directory's `profiles.json`.
-- A cache of the last Beam list (`beams.json`) in herdr's plugin state directory.
+- A cache of the last Beam list (`beams.json`) and of the tenant's model names
+  (`models.json`) in herdr's plugin state directory.
 - Machine entries in herdr's own machine list, one per Beam, labelled `beam/<id>`
   by default (configurable).
 
