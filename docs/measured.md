@@ -327,8 +327,36 @@ Measured since: the Beam-side install itself, 1.2 s, under
 story have not been re-run, so they are still the pre-0.9.0 numbers; expect about a
 second and a half more.
 
+## The tenant's model catalog (2026-11-26)
+
+Measured from the laptop on a `*.beams.sh` tenant running Teleport
+19.0.0-dev.beams.launch.2:
+
+- `tsh --proxy=<tenant> apps ls -f json` returns the whole application resource,
+  so the two inference apps carry `spec.inference.format`, `models` and, when set,
+  `fallback_model` (`serializeApps`, `tool/tsh/common/tsh.go:3780`). Three runs:
+  0.82 s, 0.50 s, 0.54 s.
+- The listing needs no admin rights. The tenant's `beam-user` role grants the apps
+  with `app_labels_expression: labels["teleport.internal/beams/app-type"] == "llm" || ...`.
+- The `anthropic` app listed `claude-opus-5-5` and `claude-sonnet-5`, each also
+  under its `anthropic.` name. The `openai` app listed `gpt-6-luna`,
+  `gpt-6.1-terra`, `gpt-6.1-sol`, `gpt-6.2-sol`, `glm-5` (`zai.glm-5`) and
+  `kimi-k2.5` (`moonshotai.kimi-k2.5`), each also under its provider-qualified
+  name. The models bundled before 0.10.0 (`anthropic.claude-opus-5`,
+  `openai.gpt-5.6-sol`, `openai.gpt-5.6-terra`) were no longer listed.
+- Neither app set `fallback_model`. The app then refuses an unlisted name with
+  `requested model "<name>" is not supported. Use one of the allowed models instead:
+  ...` and matches names ignoring case (`lib/srv/app/llm/models/models.go:31`,
+  `lib/srv/app/llm/openai/openai.go:139`, `lib/srv/app/llm/anthropic/anthropic.go:142`
+  at that tag). There is no route that lists models.
+- `check_agent_model` against the live list accepted all four bundled 0.10.0
+  profiles and `--model openai.gpt-6.2-sol`, and refused `anthropic.claude-opus-5`
+  with the two Claude models on offer.
+
 Still to measure on a live Beam:
 
+- Whether `tsh apps ls` works inside a Beam under the delegated identity. The
+  Beam-side picker and launch check fall back to an unchecked launch if it does not.
 - Whether `tsh beams ls` and `tsh beams publish` work inside a Beam under the
   delegated identity. They are plain API calls, not certificate reissues, so they
   are expected to work, but `disallow-reissue` has only been mapped for the

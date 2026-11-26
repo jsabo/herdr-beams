@@ -2,7 +2,7 @@
 # Startup hook: make the sidebar match reality. Removes herdr machine
 # profiles whose Beam has expired or been deleted, adds profiles for Beams
 # that already have herdr installed (installing this plugin and its keys on
-# them as it goes), and refreshes the state file.
+# them as it goes), and refreshes the state file and the model catalog.
 # Never asks questions; a missing login just logs and exits 0.
 # Every pane runs the removal half on entry (quick_reconcile); only this
 # hook attempts adds, because an add is an SSH round trip per Beam.
@@ -19,6 +19,12 @@ if ! BEAMS_JSON="$(tshb ls -f json 2>/dev/null)"; then
   exit 0
 fi
 export BEAMS_JSON
+
+# The tenant's model catalog, cached for the launch check and the picker. It is
+# one listing (0.5-0.8 s, docs/measured.md) that nothing below needs, so it
+# runs alongside the registrations.
+fetch_models &
+models_pid=$!
 
 quick_reconcile
 
@@ -67,3 +73,5 @@ done < <(beams_json | jq -r '.[] | [.id, .uuid] | @tsv')
 
 [ "$registrations_changed" = 0 ] || refresh_machines
 save_state
+wait "$models_pid" \
+  || printf 'beams: could not read the model list on %s; launches will try again\n' "$BEAMS_PROXY"

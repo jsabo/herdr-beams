@@ -27,26 +27,59 @@ Bundled examples in [profiles/defaults.json](../profiles/defaults.json):
 
 | Profile | Harness | Example model ID | Effort | Approval | Sandbox |
 |---|---|---|---|---|---|
-| `claude-opus` | Claude Code | `anthropic.claude-opus-5` | high | default (ask) | harness default |
+| `claude-opus` | Claude Code | `anthropic.claude-opus-5-5` | high | default (ask) | harness default |
 | `claude-sonnet` | Claude Code | `anthropic.claude-sonnet-5` | medium | default (ask) | harness default |
-| `codex-sol` | Codex | `openai.gpt-5.6-sol` | high | on-request | workspace-write |
-| `codex-terra` | Codex | `openai.gpt-5.6-terra` | medium | on-request | workspace-write |
+| `codex-sol` | Codex | `openai.gpt-6.1-sol` | high | on-request | workspace-write |
+| `codex-terra` | Codex | `openai.gpt-6.1-terra` | medium | on-request | workspace-write |
 
-Bundled profiles use provider-qualified IDs advertised by compatible inference
-catalogs. Short aliases can also be valid when explicitly configured by the proxy;
-using a qualified ID does not prove which backend served a particular request.
-Verify tenant-supported names with `tctl get app_servers` (requires appropriate
-permissions), under each application's `spec.app.spec.inference.models`. A harness
-picker alone is not evidence that the proxy serves every listed model.
+Bundled profiles use provider-qualified IDs, and only models every Beams tenant
+is provisioned with. A tenant can offer more (one measured tenant also served
+`openai.gpt-6.2-sol`); the model picker shows them.
 
-These are examples for Claude Opus 5, Claude Sonnet 5, GPT-5.6 Sol and GPT-5.6 Terra.
-Model IDs must match your Teleport inference proxy's aliases; their availability is
-not guaranteed. The installed harness must support the selected model and flags.
+## The tenant's model catalog
+
+A Beam reaches models through the tenant's Teleport inference apps. The app whose
+`spec.inference.format` is `anthropic` serves Claude Code; the one whose format is
+`openai` serves Codex. Each app accepts only the names in its
+`spec.inference.models`, ignoring case, and refuses any other name unless it sets
+`fallback_model`. Each model usually appears twice there, as a short name
+(`gpt-6.2-sol`) and as its provider-qualified name (`openai.gpt-6.2-sol`); both work.
+
+The plugin reads those lists with `tsh --proxy=<tenant> apps ls -f json`. That
+needs no admin rights: the standard Beams user role grants the inference apps. It
+caches the result as `models.json` in the plugin's state directory, refreshes it in
+the startup hook, and uses it three ways:
+
+- **Picker.** After the profile question, `profiles` lists one name per model for
+  that harness, preferring the provider-qualified name, and marks the profile's
+  model. Enter keeps it; a number replaces only the model for this launch. A profile
+  model the tenant no longer offers is flagged, and Enter then cancels. The
+  question is skipped when the list cannot be read, when the app accepts any name,
+  and when the profile's model is the only one offered. The listing runs while the
+  profile question is open, so the model question shows the current list.
+- **Launch check.** Every profile launch (`agent` with a profile, `profiles`,
+  `claude`, `codex`, and `new` before it creates a Beam) checks the model against
+  the cache. A miss is checked once more against a fresh listing, then refused
+  with the names on offer. A name the app would route to its `fallback_model`
+  launches with a warning naming the model that will answer.
+- **`--model <id>`.** `beam-agent.sh` and `beam-new.sh` accept it after the profile
+  flag. It replaces the profile's model for one launch and is checked the same way.
+
+When no listing is possible (not logged in, or a Beam's delegated identity refusing
+the call), launches go ahead unchecked and print that they did. The legacy
+unprofiled launch is never checked: its model, if any, is inside `BEAM_AGENT_ARGS`.
+
+The check covers what the proxy accepts, not what the harness supports. Codex
+can be pointed at non-OpenAI models the `openai` app serves (such as `zai.glm-5`)
+and may lack catalog metadata for them; see
+[troubleshooting](troubleshooting.md). Using a qualified ID does not prove which
+backend served a particular request.
 
 Create `profiles.json` under `$(herdr plugin config-dir herdr-beams)` to replace a
 bundled record or add a named profile. Records replace whole profiles; include every
 required field. Installation and upgrades never rewrite this file. If you already
-override a bundled profile, update its `model` field locally to adopt a new ID.
+override a bundled profile, update its `model` field locally to adopt a new ID; a
+launch check names the replacement when the old one is withdrawn.
 For example:
 
 ```json

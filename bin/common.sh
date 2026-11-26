@@ -548,10 +548,14 @@ load_profiles() {
 }
 
 # Sets a Bash argument array; profile contents are never evaluated as shell code.
+# An optional second argument replaces the profile's model for this launch only.
+# AGENT_MODEL is the model the launch will ask for, empty on the legacy path.
 load_agent_profile() {
-  local name="${1:-}" record args arg
+  local name="${1:-}" model="${2:-}" record args arg
   AGENT_ARGS=()
+  AGENT_MODEL=""
   if [ -z "$name" ]; then
+    [ -z "$model" ] || die "--model needs a profile; pass --profile <name> or set BEAM_AGENT_PROFILE"
     AGENT_KIND="$BEAM_AGENT_KIND"
     local legacy="$BEAM_AGENT_ARGS"
     legacy="${legacy//$'\n'/ }"
@@ -561,8 +565,14 @@ load_agent_profile() {
   load_profiles
   record="$(jq -ce --arg p "$name" '.[$p] // empty' <<<"$AGENT_PROFILES")" \
     || die "no agent profile named $name"
+  if [ -n "$model" ]; then
+    record="$(jq -ce --arg m "$model" '
+      if $m | test("[\u0000-\u001f\u007f]") then error("invalid model") else .model = $m end' <<<"$record")" \
+      || die "invalid model name; it must not contain control characters"
+  fi
   # shellcheck disable=SC2034  # consumed by launch scripts
   AGENT_KIND="$(jq -r .harness <<<"$record")"
+  AGENT_MODEL="$(jq -r .model <<<"$record")"
   args="$(jq -c '
     ["--model", .model] +
     (if .harness == "claude" then ["--effort", .effort] +
@@ -574,10 +584,18 @@ load_agent_profile() {
   while IFS= read -r -d '' arg; do AGENT_ARGS+=("$arg"); done < <(jq -jr '.[] + "\u0000"' <<<"$args")
 }
 
+# Returns the chosen profile in BEAM_AGENT_PROFILE and, when a model other than
+# the profile's own was picked, that model in AGENT_PICKED_MODEL.
 pick_agent_profile() {
   interactive || die "profile picker needs a terminal; pass --profile <name>"
   load_profiles
-  local names=() name choice="" i=1
+  local names=() name choice="" i=1 catalog_pid
+  # The model question comes right after this one. Fetching the tenant's list
+  # while the profile question is open means it shows the current catalog
+  # without a wait of its own; the fetch writes the cache, which the model
+  # question reads.
+  fetch_models >/dev/null 2>&1 &
+  catalog_pid=$!
   mapfile -t names < <(jq -r 'keys[]' <<<"$AGENT_PROFILES")
   for name in "${names[@]}"; do
     note "$i) $name · $(jq -r --arg p "$name" '.[$p] | [.harness, .model, .effort, .approval] | join(" · ")' <<<"$AGENT_PROFILES")"
@@ -590,6 +608,157 @@ pick_agent_profile() {
     || die "no agent profile chosen"
   # shellcheck disable=SC2034  # returned to the launch script
   BEAM_AGENT_PROFILE="${names[choice-1]}"
+  pick_agent_model "$catalog_pid"
+}
+
+# The second picker question: which of the tenant's models this launch uses,
+# with the profile's model as the default Enter keeps. Skipped when there is no
+# list to choose from (the fetch failed and nothing is cached, or the app
+# accepts any name) and when the only model offered is already the default.
+pick_agent_model() {
+  local catalog_pid="$1" harness model verdict choices=() m mark choice="" i=1
+  AGENT_PICKED_MODEL=""
+  harness="$(jq -r --arg p "$BEAM_AGENT_PROFILE" '.[$p].harness' <<<"$AGENT_PROFILES")"
+  model="$(jq -r --arg p "$BEAM_AGENT_PROFILE" '.[$p].model' <<<"$AGENT_PROFILES")"
+  wait "$catalog_pid" 2>/dev/null || true
+  if ! cached_models; then
+    off "could not read the model list on $BEAMS_PROXY; using $model from the profile"
+    return 0
+  fi
+  verdict="$(model_verdict "$harness" "$model")"
+  [ "$verdict" != open ] || return 0
+  mapfile -t choices < <(model_choices "$harness")
+  [ "${#choices[@]}" -gt 0 ] || die "$BEAMS_PROXY offers no models for $harness"
+  if [ "${#choices[@]}" -eq 1 ] && [ "$verdict" = offered ]; then return 0; fi
+  printf '\n'
+  note "$harness models on $BEAMS_PROXY:"
+  for m in "${choices[@]}"; do
+    mark=""
+    [ "${m,,}" != "${model,,}" ] || mark=" · profile default"
+    note "$i) $m$mark"
+    i=$((i + 1))
+  done
+  if [ "$verdict" = missing ]; then
+    off "$model from the profile is not offered on $BEAMS_PROXY"
+    hints "number pick a model" "empty cancel"
+    ask "Model: " choice
+    [ -n "$choice" ] || die "no model chosen"
+  else
+    hints "enter keep $model" "number use another model"
+    ask "Model [$model]: " choice
+    [ -n "$choice" ] || return 0
+  fi
+  # shellcheck disable=SC2015  # any invalid condition cancels selection
+  [[ "$choice" =~ ^[1-9][0-9]*$ ]] && [ "${#choice}" -le 4 ] && [ "$choice" -le "${#choices[@]}" ] \
+    || die "no model chosen"
+  # shellcheck disable=SC2034  # returned to the launch script
+  AGENT_PICKED_MODEL="${choices[choice-1]}"
+}
+
+# ---- the tenant's model catalog -------------------------------------------
+#
+# Agents in a Beam reach models through the tenant's inference apps, and an app
+# refuses a model name its list does not carry ("requested model ... is not
+# supported. Use one of the allowed models instead", Teleport
+# lib/srv/app/llm/openai/openai.go and anthropic/anthropic.go) unless it names
+# a fallback model. That refusal arrives inside the agent's pane, after the
+# workspace exists. `tsh apps ls -f json` returns each app's spec.inference to
+# any user whose role grants the inference apps (docs/measured.md), so a launch
+# is checked against the tenant's own list, not one shipped with the plugin.
+#
+# The app's format decides the harness: anthropic (the Messages API) is Claude
+# Code's, openai (the Responses API) is Codex's. Per harness the catalog keeps
+#   names     every name the app accepts, lowercased: the app ignores case
+#   choices   one launch name per upstream model, the provider-qualified name
+#             when the app accepts it (as the bundled profiles use), else the
+#             first name that reaches that model
+#   open      an app with an empty list, which accepts any name
+#   fallback  the model the app serves for a name it does not list
+# The cache records which tenant it came from; another tenant's is ignored.
+MODELS_CACHE="$STATE_DIR/models.json"
+
+models_from_apps() {
+  jq -ce --arg proxy "$BEAMS_PROXY" '
+    def harness: {"anthropic": "claude", "openai": "codex"}[.] // empty;
+    def upstream: .provider_name // .name;
+    {proxy: $proxy, harnesses: (
+      [ .[] | select(.sub_kind == "llm") | .spec.inference // empty
+        | {harness: (.format | strings | harness), models: (.models // []), fallback: (.fallback_model // "")} ]
+      | group_by(.harness)
+      | map({key: .[0].harness, value: {
+          open: any(.[]; .models | length == 0),
+          fallback: ([.[].fallback | select(. != "")] | first // ""),
+          names: ([.[].models[].name | ascii_downcase] | unique),
+          choices: ([.[].models[]] as $all
+            | [$all[] | upstream] | unique
+            | map(. as $up | [$all[] | select(upstream == $up) | .name]
+                | (map(select(. == $up)) | first) // first))
+        }})
+      | from_entries)}'
+}
+
+# Fetch the catalog and cache it. Quiet; the caller decides what a failure means.
+fetch_models() {
+  local apps catalog tmp
+  apps="$(tsh --proxy="$BEAMS_PROXY" apps ls -f json 2>/dev/null)" || return 1
+  catalog="$(models_from_apps <<<"$apps" 2>/dev/null)" || return 1
+  tmp="$(mktemp "$MODELS_CACHE.XXXXXX")"
+  printf '%s\n' "$catalog" > "$tmp"
+  mv "$tmp" "$MODELS_CACHE"
+  MODELS_JSON="$catalog"
+}
+
+# Load the cached catalog into MODELS_JSON when it belongs to this tenant.
+cached_models() {
+  [ -s "$MODELS_CACHE" ] || return 1
+  MODELS_JSON="$(jq -ce --arg p "$BEAMS_PROXY" 'select(.proxy == $p)' "$MODELS_CACHE" 2>/dev/null)"
+}
+
+# What the tenant does with a model name: offered, open (any name works),
+# fallback:<model> (it serves that model instead) or missing.
+model_verdict() {
+  jq -r --arg h "$1" --arg m "$2" '
+    ($m | ascii_downcase | sub("^\\s+"; "") | sub("\\s+$"; "")) as $want
+    | .harnesses[$h] as $c
+    | if $c == null then "missing"
+      elif $c.open then "open"
+      elif any($c.names[]; . == $want) then "offered"
+      elif $c.fallback != "" then "fallback:" + $c.fallback
+      else "missing" end' <<<"$MODELS_JSON"
+}
+
+model_choices() { jq -r --arg h "$1" '.harnesses[$h].choices // [] | .[]' <<<"$MODELS_JSON"; }
+
+# Stop a launch whose model the tenant would refuse, before any Beam or
+# workspace exists. The cache answers first. A model it does not list is
+# checked once more against a fresh listing, because a model added since the
+# last refresh is the case this check most often meets. With no listing at all
+# (not logged in, or a Beam's delegated identity refusing it) the launch goes
+# ahead unchecked, as every launch did before this check existed.
+check_agent_model() {
+  local verdict fresh=0 offered
+  [ -n "${AGENT_MODEL:-}" ] || return 0
+  if ! cached_models; then
+    if ! fetch_models; then
+      off "could not read the model list on $BEAMS_PROXY; launching $AGENT_MODEL unchecked"
+      return 0
+    fi
+    fresh=1
+  fi
+  verdict="$(model_verdict "$AGENT_KIND" "$AGENT_MODEL")"
+  if [ "$verdict" = missing ] && [ "$fresh" = 0 ] && fetch_models; then
+    verdict="$(model_verdict "$AGENT_KIND" "$AGENT_MODEL")"
+  fi
+  case "$verdict" in
+    offered|open) return 0 ;;
+    fallback:*)
+      off "$BEAMS_PROXY does not list $AGENT_MODEL; it will serve ${verdict#fallback:} instead"
+      return 0
+      ;;
+  esac
+  offered="$(jq -r --arg h "$AGENT_KIND" '.harnesses[$h].choices // [] | join(", ")' <<<"$MODELS_JSON")"
+  [ -n "$offered" ] || die "$BEAMS_PROXY offers no models for $AGENT_KIND"
+  die "$AGENT_MODEL is not offered on $BEAMS_PROXY; $AGENT_KIND models: $offered. Pick one in the profiles pane, pass --model, or change the profile in $CONFIG_DIR/profiles.json"
 }
 
 # Install on each launch: the Beam may have been created with another harness.

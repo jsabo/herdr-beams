@@ -2,9 +2,11 @@
 # Create a Beam, install herdr on it, add it to the herdr sidebar, and
 # optionally start an agent in it. Runs in a popup pane. Prints a timestamp
 # per phase so you can see where the seconds go.
-# Usage: beam-new.sh [--agent] [--profile <name>]
+# Usage: beam-new.sh [--agent] [--profile <name>] [--model <id>]
 #   --agent  hand over to beam-agent.sh for the new Beam without asking; this
 #            is how the agent pane creates a Beam when there is none.
+#   --model  the model that agent uses instead of the profile's, checked
+#            against the tenant's list before the Beam is created.
 cd "$(dirname "$0")/.." || exit 1
 # shellcheck disable=SC1091
 . bin/common.sh
@@ -19,8 +21,19 @@ if [ "${1:-}" = --profile ]; then
   profile="$2"
   shift 2
 fi
-load_agent_profile "$profile"
+model=""
+if [ "${1:-}" = --model ]; then
+  model="${2:-}"
+  [ -n "$model" ] || die "--model requires a model name"
+  shift 2
+fi
+load_agent_profile "$profile" "$model"
+# A model the tenant would refuse fails here, before a Beam costs sandbox time.
+check_agent_model
 BEAM_AGENT_KIND="$AGENT_KIND"
+# What the agent launch after creation receives.
+agent_args=(--prepared-harness "$AGENT_KIND" --profile "$profile")
+[ -z "$model" ] || agent_args+=(--model "$model")
 
 # Provisioning takes about ten seconds on the server, so the Beam list the
 # reconcile needs is fetched while that runs instead of before it. This is the
@@ -108,7 +121,7 @@ show_cmd "herdr --machine $machine pane list"
 
 if [ "$then_agent" = 1 ]; then
   printf '\n'
-  exec bash bin/beam-agent.sh --prepared-harness "$AGENT_KIND" --profile "$profile" "$id" "$@"
+  exec bash bin/beam-agent.sh "${agent_args[@]}" "$id" "$@"
 fi
 # The offer doubles as the close key: any key closes, y goes on to the agent.
 if interactive; then
@@ -117,7 +130,7 @@ if interactive; then
   yn=""
   ask "Start a $BEAM_AGENT_KIND agent in it now? [y/N] " yn
   case "$yn" in
-    y|Y) exec bash bin/beam-agent.sh --prepared-harness "$AGENT_KIND" --profile "$profile" "$id" ;;
+    y|Y) exec bash bin/beam-agent.sh "${agent_args[@]}" "$id" ;;
   esac
 fi
 pause

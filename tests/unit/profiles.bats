@@ -9,16 +9,16 @@ profile_args() {
 @test "profiles: bundled Claude and Codex fields map to harness arguments" {
   profile_args claude-opus
   [ "$status" -eq 0 ]
-  [ "$output" = $'claude\n<--model>\n<anthropic.claude-opus-5>\n<--effort>\n<high>\n<--permission-mode>\n<default>' ]
+  [ "$output" = $'claude\n<--model>\n<anthropic.claude-opus-5-5>\n<--effort>\n<high>\n<--permission-mode>\n<default>' ]
   profile_args codex-sol
   [ "$status" -eq 0 ]
-  [ "$output" = $'codex\n<--model>\n<openai.gpt-5.6-sol>\n<-c>\n<model_reasoning_effort="high">\n<--sandbox>\n<workspace-write>\n<--ask-for-approval>\n<on-request>\n<-c>\n<sandbox_workspace_write.network_access=false>' ]
+  [ "$output" = $'codex\n<--model>\n<openai.gpt-6.1-sol>\n<-c>\n<model_reasoning_effort="high">\n<--sandbox>\n<workspace-write>\n<--ask-for-approval>\n<on-request>\n<-c>\n<sandbox_workspace_write.network_access=false>' ]
   profile_args claude-sonnet
   [ "$status" -eq 0 ]
   [[ "$output" == *'<anthropic.claude-sonnet-5>'*'<medium>'* ]]
   profile_args codex-terra
   [ "$status" -eq 0 ]
-  [[ "$output" == *'<openai.gpt-5.6-terra>'*'<on-request>'* ]]
+  [[ "$output" == *'<openai.gpt-6.1-terra>'*'<on-request>'* ]]
 }
 
 @test "profiles: user records replace defaults, add profiles and preserve literal model strings" {
@@ -66,9 +66,9 @@ JSON
 }
 
 @test "profiles: picker selects a profile before workspace questions and launch" {
-  run_interactive beam-profiles.sh alpha-one <<<$'3\nreview\ncheck it\n'
+  run_interactive beam-profiles.sh alpha-one <<<$'3\n\nreview\ncheck it\n'
   [ "$status" -eq 0 ]
-  [[ "$output" == *'claude-opus · claude · anthropic.claude-opus-5'*'Profile:'*'Workspace label'* ]]
+  [[ "$output" == *'claude-opus · claude · anthropic.claude-opus-5-5'*'Profile:'*'Workspace label'* ]]
   calls_in_order 'integration install codex' 'workspace create --cwd ~ --label review --no-focus' 'agent start codex' 'agent prompt codex check it'
 }
 
@@ -77,7 +77,7 @@ JSON
     run_interactive beam-profiles.sh alpha-one <<<"$choice"
     [ "$status" -ne 0 ]
     [[ "$output" == *'no agent profile chosen'* ]]
-    [ ! -s "$FAKE_LOG" ]
+    ! grep -v 'apps ls -f json$' "$FAKE_LOG"
   done
   run_interactive beam-profiles.sh alpha-one </dev/null
   [ "$status" -ne 0 ]
@@ -92,17 +92,17 @@ JSON
   [ "$status" -eq 0 ]
   calls_in_order 'beams add' 'integration install codex' 'machine add' \
     'workspace create --cwd ~ --label review space --no-focus' \
-    'agent start codex --kind codex --pane w9:p1 -- --model openai.gpt-5.6-terra' \
+    'agent start codex --kind codex --pane w9:p1 -- --model openai.gpt-6.1-terra' \
     'agent prompt codex read SPEC.md'
   [ "$(call_count 'beams add')" -eq 1 ]
 }
 
 @test "profiles: picker selection survives creation without a second picker" {
   printf '[]' > "$FAKE_STATE/beams.json"
-  run_bound beam-profiles.sh <<<$'4\napi\nfix it\n'
+  run_bound beam-profiles.sh <<<$'4\n\napi\nfix it\n'
   [ "$status" -eq 0 ]
   [ "$(printf '%s' "$output" | grep -o 'Profile:' | wc -l)" -eq 1 ]
-  grep -q 'agent start codex .*--model openai.gpt-5.6-terra' "$FAKE_LOG"
+  grep -q 'agent start codex .*--model openai.gpt-6.1-terra' "$FAKE_LOG"
 }
 
 @test "profiles: direct actions open matching popups and use configurable profiles" {
@@ -113,11 +113,11 @@ JSON
   done
   run_script beam-claude.sh alpha-one
   [ "$status" -eq 0 ]
-  grep -q 'agent start claude .*--model anthropic.claude-opus-5' "$FAKE_LOG"
+  grep -q 'agent start claude .*--model anthropic.claude-opus-5-5' "$FAKE_LOG"
   printf 'BEAM_CODEX_PROFILE=codex-terra\n' >> "$HERDR_PLUGIN_CONFIG_DIR/env"
   run_script beam-codex.sh alpha-one
   [ "$status" -eq 0 ]
-  grep -q 'agent start codex .*--model openai.gpt-5.6-terra' "$FAKE_LOG"
+  grep -q 'agent start codex .*--model openai.gpt-6.1-terra' "$FAKE_LOG"
 }
 
 @test "profiles: two harnesses coexist on one Beam in separate workspace launches" {
@@ -143,10 +143,10 @@ JSON
   printf 'BEAM_AGENT_PROFILE=codex-sol\n' >> "$HERDR_PLUGIN_CONFIG_DIR/env"
   run_script beam-agent.sh alpha-one
   [ "$status" -eq 0 ]
-  grep -q 'agent start codex .*--model openai.gpt-5.6-sol' "$FAKE_LOG"
+  grep -q 'agent start codex .*--model openai.gpt-6.1-sol' "$FAKE_LOG"
   run_script beam-agent.sh --profile claude-opus alpha-one
   [ "$status" -eq 0 ]
-  grep -q 'agent start claude .*--model anthropic.claude-opus-5' "$FAKE_LOG"
+  grep -q 'agent start claude .*--model anthropic.claude-opus-5-5' "$FAKE_LOG"
 }
 
 @test "profiles: explicit selection survives creation even with an env-file default" {
@@ -155,13 +155,15 @@ JSON
   run_bound beam-agent.sh --profile codex-sol '' api 'fix it' </dev/null
   [ "$status" -eq 0 ]
   grep -q 'integration install codex' "$FAKE_LOG"
-  grep -q 'agent start codex .*--model openai.gpt-5.6-sol' "$FAKE_LOG"
+  grep -q 'agent start codex .*--model openai.gpt-6.1-sol' "$FAKE_LOG"
   ! grep -q 'integration install claude' "$FAKE_LOG"
 }
 
 @test "profiles: launch preserves model argument boundaries without executing shell syntax" {
   model='proxy alias $(false); * "quoted"'
   jq -n --arg model "$model" '{literal:{harness:"claude",model:$model,effort:"high",approval:"default"}}' > "$HERDR_PLUGIN_CONFIG_DIR/profiles.json"
+  # No catalog to check against, so the literal name reaches the harness.
+  touch "$FAKE_STATE/apps-fails"
   run_script beam-agent.sh --profile literal alpha-one api
   [ "$status" -eq 0 ]
   argv=()
@@ -200,8 +202,8 @@ JSON
 
 @test "profiles: explicit custom overrides can still opt into broader permissions" {
   cat > "$HERDR_PLUGIN_CONFIG_DIR/profiles.json" <<'JSON'
-{"claude-opus":{"harness":"claude","model":"anthropic.claude-opus-5","effort":"high","approval":"bypass"},
- "codex-sol":{"harness":"codex","model":"openai.gpt-5.6-sol","effort":"high","approval":"never","sandbox":"workspace-write","network_access":true}}
+{"claude-opus":{"harness":"claude","model":"anthropic.claude-opus-5-5","effort":"high","approval":"bypass"},
+ "codex-sol":{"harness":"codex","model":"openai.gpt-6.1-sol","effort":"high","approval":"never","sandbox":"workspace-write","network_access":true}}
 JSON
   profile_args claude-opus
   [ "$status" -eq 0 ]

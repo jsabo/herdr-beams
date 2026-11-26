@@ -121,7 +121,7 @@ A herdr plugin is ordinary code that runs as your user. This one is a few short 
 scripts in `bin/`, and they do exactly this:
 
 - **Commands it issues**: `tsh --proxy=<BEAMS_PROXY> beams ls|add|rm|publish`,
-  `ssh beams@<uuid>.<tenant>` (through your SSH config, one shared connection per
+  `tsh --proxy=<BEAMS_PROXY> apps ls -f json` (the model catalog), `ssh beams@<uuid>.<tenant>` (through your SSH config, one shared connection per
   Beam), `herdr machine add|rename|remove|list`, and `herdr --machine beam/<id> …` for
   workspaces and agents on the Beam. Deletion removes the runtime before its
   sidebar entry, preserving access when the deletion request fails.
@@ -139,8 +139,8 @@ scripts in `bin/`, and they do exactly this:
   installed). Existing-Beam launches install the selected integration idempotently; a launch
   handed directly from creation reuses the integration just installed.
 - **Where it writes on the laptop**: your settings in
-  `$(herdr plugin config-dir herdr-beams)/env`, a cache of the Beam list in herdr's
-  plugin state directory, machine entries in herdr's own machine list, and optional
+  `$(herdr plugin config-dir herdr-beams)/env`, caches of the Beam list and the
+  tenant's model names in herdr's plugin state directory, machine entries in herdr's own machine list, and optional
   profile overrides in the plugin config directory. It stores no credentials;
   `tsh` holds your login.
 - **Legacy agents run with permission prompts off.** `BEAM_AGENT_ARGS` defaults to

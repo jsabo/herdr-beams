@@ -7,7 +7,7 @@ setup() { setup_fakes; }
   [ "$status" -eq 0 ]
   calls_in_order 'workspace create' \
     'pane run w9:p1 codex() { unset -f codex; printf "\033[H\033[2J\033[3J"; HERDR_AGENT=codex command codex "$@"; }' \
-    'agent start codex --kind codex --pane w9:p1 -- --model openai.gpt-5.6-sol' \
+    'agent start codex --kind codex --pane w9:p1 -- --model openai.gpt-6.1-sol' \
     'agent prompt codex check it'
 
   mkdir -p "$BATS_TEST_TMPDIR/bin"

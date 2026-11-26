@@ -87,6 +87,17 @@
   bundled Codex profiles disable network access while keeping `workspace-write`.
   Custom profiles must explicitly set `"network_access": true` with that sandbox
   if they need networking; approval `never` alone does not enable it.
+- **A launch stops with "<model> is not offered on <tenant>".** The tenant's
+  inference app for that harness does not list the model, so the agent would have
+  been refused at its first prompt. The message lists what is offered. Choose one in
+  the `profiles` popup, pass `--model`, or update `model` in your `profiles.json`.
+  The plugin has already re-read the list once, so a model added in the last few
+  minutes is not the cause.
+- **A launch says "could not read the model list ... unchecked".** `tsh apps ls`
+  failed: on the laptop, log in again; inside a Beam, the delegated identity may not
+  allow the listing. The launch still runs; a wrong model then fails in the agent's
+  pane with "requested model ... is not supported. Use one of the allowed models
+  instead: ...", which names the valid choices.
 - **Codex reports missing model metadata.** A model alias can return responses
   without a matching Codex catalog entry. Check that the configured inference
   endpoint and installed Codex expose metadata for your selected alias. The plugin

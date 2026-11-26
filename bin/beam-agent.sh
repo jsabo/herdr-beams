@@ -15,8 +15,10 @@
 # Once the prompt is sent the pane is done: the agent list in the sidebar shows
 # working, then done, and the agent's own pane is a click away, so this pane
 # never waits on the agent.
-# Usage, on the laptop: beam-agent.sh [--profile <name> | --pick-profile] [beam-id] [workspace-label] [prompt...]
-# Usage, on a Beam:     beam-agent.sh [--profile <name> | --pick-profile] [workspace-label] [prompt...]
+# The profile's model is checked against the tenant's model list before any
+# Beam or workspace exists (check_agent_model in bin/common.sh).
+# Usage, on the laptop: beam-agent.sh [--profile <name> | --pick-profile] [--model <id>] [beam-id] [workspace-label] [prompt...]
+# Usage, on a Beam:     beam-agent.sh [--profile <name> | --pick-profile] [--model <id>] [workspace-label] [prompt...]
 cd "$(dirname "$0")/.." || exit 1
 # shellcheck disable=SC1091
 . bin/common.sh
@@ -30,11 +32,18 @@ if [ "${1:-}" = --prepared-harness ]; then
   shift 2
 fi
 profile="${BEAM_AGENT_PROFILE:-}"
+model=""
 case "${1:-}" in
   --profile) [ "$#" -ge 2 ] || die "usage: beam-agent.sh --profile <name> [beam-id] [workspace] [prompt]"; profile="$2"; shift 2 ;;
-  --pick-profile) pick_agent_profile; profile="$BEAM_AGENT_PROFILE"; shift ;;
+  --pick-profile) pick_agent_profile; profile="$BEAM_AGENT_PROFILE"; model="$AGENT_PICKED_MODEL"; shift ;;
 esac
-load_agent_profile "$profile"
+if [ "${1:-}" = --model ]; then
+  model="${2:-}"
+  [ -n "$model" ] || die "--model requires a model name"
+  shift 2
+fi
+load_agent_profile "$profile" "$model"
+check_agent_model
 
 if in_beam; then
   # On the Beam itself: this Beam, its own herdr, no Beam list and no SSH. An
@@ -55,8 +64,11 @@ else
       ask "No Beams yet. Create one and start the agent in it? [Y/n] " yn
       case "$yn" in n|N) die "no Beams; create one with the New Beam pane" ;; esac
     fi
-    # beam-new creates the Beam and hands back to this script with its id.
-    exec bash bin/beam-new.sh --agent --profile "$profile" "${@:2}"
+    # beam-new creates the Beam and hands back to this script with its id,
+    # carrying a model picked or passed here.
+    handoff=(--agent --profile "$profile")
+    [ -z "$model" ] || handoff+=(--model "$model")
+    exec bash bin/beam-new.sh "${handoff[@]}" "${@:2}"
   fi
 
   id="$(pick_beam "${1:-}")"
