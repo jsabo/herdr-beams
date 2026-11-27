@@ -17,20 +17,21 @@ JSON
   grep -q 'agent start codex' "$FAKE_LOG"
 }
 
-@test "codex hooks: wrong source, command injection, disabled hooks and duplicate matches fail before creating workspaces" {
+@test "codex hooks: wrong source, command injection, disabled hooks and duplicate matches fail before an agent starts" {
   for change in '.sourcePath="/project/.codex/hooks.json"' '.command += "; echo injected"' '.enabled=false' '.eventName="stop"'; do
     jq -n --arg change "$change" '{data:[{hooks:[{key:"expected",eventName:"sessionStart",handlerType:"command",command:"bash '\''/home/beams/.codex/herdr-agent-state.sh'\'' session",sourcePath:"/home/beams/.codex/hooks.json",enabled:true,currentHash:"sha256:fresh"}]}]}' > "$FAKE_STATE/original-hooks.json"
     jq ".data[0].hooks[0] |= ($change)" "$FAKE_STATE/original-hooks.json" > "$FAKE_STATE/codex-hooks.json"
     run_script beam-codex.sh alpha-one
     [ "$status" -ne 0 ]
     [[ "$output" == *'could not identify the installed Herdr Codex hook'* ]]
-    ! grep -q 'workspace create\|agent start' "$FAKE_LOG"
+    ! grep -q 'agent start' "$FAKE_LOG"
+    [[ "$output" == *'its workspace was closed again'* ]]
     ! grep -q 'config/batchWrite' "$FAKE_STATE/codex-rpc.log"
   done
   jq '.data[0].hooks += .data[0].hooks' "$FAKE_STATE/original-hooks.json" > "$FAKE_STATE/codex-hooks.json"
   run_script beam-codex.sh alpha-one
   [ "$status" -ne 0 ]
-  ! grep -q 'workspace create\|agent start' "$FAKE_LOG"
+  ! grep -q 'agent start' "$FAKE_LOG"
 }
 
 @test "codex hooks: API and config write errors remain visible and prevent agent launch" {
@@ -38,13 +39,14 @@ JSON
   run_script beam-codex.sh alpha-one
   [ "$status" -ne 0 ]
   [[ "$output" == *'hooks/list unsupported'* ]]
-  ! grep -q 'workspace create\|agent start' "$FAKE_LOG"
+  ! grep -q 'agent start' "$FAKE_LOG"
+  grep -q 'workspace close w9' "$FAKE_LOG"
   rm "$FAKE_STATE/codex-rpc-error"
   touch "$FAKE_STATE/codex-write-error"
   run_script beam-codex.sh alpha-one
   [ "$status" -ne 0 ]
   [[ "$output" == *'config is read-only'* ]]
-  ! grep -q 'workspace create\|agent start' "$FAKE_LOG"
+  ! grep -q 'agent start' "$FAKE_LOG"
 }
 
 @test "codex network: boolean overrides are explicit and do not change file sandbox or approvals" {

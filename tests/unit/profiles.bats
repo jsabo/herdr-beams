@@ -69,7 +69,8 @@ JSON
   run_interactive beam-profiles.sh alpha-one <<<$'3\n\nreview\ncheck it\n'
   [ "$status" -eq 0 ]
   [[ "$output" == *'claude-opus · claude · anthropic.claude-opus-5-5'*'Profile:'*'Workspace label'* ]]
-  calls_in_order 'integration install codex' 'workspace create --cwd ~ --label review --no-focus' 'agent start codex' 'agent prompt codex check it'
+  calls_in_order 'integration install codex' 'agent start codex' 'agent prompt codex check it'
+  calls_in_order 'workspace create --cwd ~ --label review --no-focus' 'agent start codex'
 }
 
 @test "profiles: picker cancels empty, invalid, out of range and EOF input without launching" {
@@ -126,17 +127,40 @@ JSON
   printf 'claude\ncodex\n' > "$FAKE_STATE/agent-names"
   run_script beam-agent.sh --profile codex-sol alpha-one review
   [ "$status" -eq 0 ]
-  calls_in_order 'integration install claude' 'workspace create --cwd ~ --label implementation --no-focus' \
-    'agent start claude --kind claude' 'integration install codex' \
-    'workspace create --cwd ~ --label review --no-focus' 'agent start codex-2 --kind codex'
+  # Preparation and the workspace run at once, so each pair is checked against
+  # its agent start rather than against each other.
+  calls_in_order 'integration install claude' 'agent start claude --kind claude' \
+    'integration install codex' 'agent start codex-2 --kind codex'
+  calls_in_order 'workspace create --cwd ~ --label implementation --no-focus' \
+    'agent start claude --kind claude' 'workspace create --cwd ~ --label review --no-focus' \
+    'agent start codex-2 --kind codex'
   ! grep -q 'agent stop\|workspace focus\|worktree' "$FAKE_LOG"
 }
 
-@test "profiles: integration failure prevents workspace creation and agent start" {
+@test "profiles: integration failure starts no agent and closes the workspace made for it" {
   touch "$FAKE_STATE/integration-fails"
   run_script beam-agent.sh --profile codex-sol alpha-one
   [ "$status" -ne 0 ]
-  ! grep -q 'workspace create\|agent start' "$FAKE_LOG"
+  [[ "$output" == *'could not install codex integration on alpha-one'*'its workspace was closed again'* ]]
+  calls_in_order 'workspace create' 'workspace close w9'
+  ! grep -q 'agent start' "$FAKE_LOG"
+}
+
+@test "profiles: a workspace that cannot be closed after a failed preparation is named" {
+  touch "$FAKE_STATE/integration-fails" "$FAKE_STATE/workspace-close-fails"
+  run_script beam-agent.sh --profile claude-opus alpha-one
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'close the empty workspace with: herdr --machine id-alpha-one workspace close w9'* ]]
+  ! grep -q 'agent start' "$FAKE_LOG"
+}
+
+@test "profiles: harness preparation runs while the workspace is created" {
+  run_script beam-agent.sh --profile claude-opus alpha-one api
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'preparing claude on alpha-one while its workspace is created'* ]]
+  grep -q 'integration install claude' "$FAKE_LOG"
+  grep -q 'workspace create' "$FAKE_LOG"
+  calls_in_order 'integration install claude' 'agent start claude'
 }
 
 @test "profiles: environment default is used but explicit profile wins" {

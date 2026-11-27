@@ -75,12 +75,12 @@ setup() { setup_fakes; }
 }
 
 @test "agent: BEAM_AGENT_KIND and BEAM_AGENT_ARGS override the defaults, and the name follows the kind" {
-  printf 'BEAMS_PROXY=example.beams.sh\nBEAM_AGENT_KIND=codex\nBEAM_AGENT_ARGS="--full-auto --model o4"\n' > "$HERDR_PLUGIN_CONFIG_DIR/env"
+  printf 'BEAMS_PROXY=example.beams.sh\nBEAM_AGENT_KIND=codex\nBEAM_AGENT_ARGS="--full-auto --model gpt-6-luna"\n' > "$HERDR_PLUGIN_CONFIG_DIR/env"
   run_script beam-agent.sh alpha-one api
   [ "$status" -eq 0 ]
   # The title request is appended to whatever the launch already carries, so the
   # legacy path gets the Codex headline too.
-  grep -q 'agent start codex --kind codex --pane w9:p1 -- --full-auto --model o4 -c tui.terminal_title=\["activity","thread-title"\]$' "$FAKE_LOG"
+  grep -q 'agent start codex --kind codex --pane w9:p1 -- --full-auto --model gpt-6-luna -c tui.terminal_title=\["activity","thread-title"\]$' "$FAKE_LOG"
 }
 
 @test "agent: uses the selected machine when no Beam id is given" {

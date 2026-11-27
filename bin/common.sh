@@ -560,8 +560,21 @@ load_agent_profile() {
     local legacy="$BEAM_AGENT_ARGS"
     legacy="${legacy//$'\n'/ }"
     read -r -a AGENT_ARGS <<<"$legacy" || true
+    # A model named in the legacy arguments is checked like a profile's. Left
+    # unchecked, Claude Code swaps a model the Beam image does not allow for
+    # one it does, with only a line in its pane (docs/measured.md).
+    local i
+    for i in "${!AGENT_ARGS[@]}"; do
+      case "${AGENT_ARGS[i]}" in
+        --model) AGENT_MODEL="${AGENT_ARGS[i+1]:-}" ;;
+        --model=*) AGENT_MODEL="${AGENT_ARGS[i]#--model=}" ;;
+        -m) [ "$AGENT_KIND" != codex ] || AGENT_MODEL="${AGENT_ARGS[i+1]:-}" ;;
+      esac
+    done
+    AGENT_MODEL_FROM="env"
     return
   fi
+  AGENT_MODEL_FROM=profile
   load_profiles
   record="$(jq -ce --arg p "$name" '.[$p] // empty' <<<"$AGENT_PROFILES")" \
     || die "no agent profile named $name"
@@ -589,7 +602,10 @@ load_agent_profile() {
 pick_agent_profile() {
   interactive || die "profile picker needs a terminal; pass --profile <name>"
   load_profiles
-  local names=() name choice="" i=1 catalog_pid
+  local names=() name choice="" i=1 catalog_pid cached=0 line
+  # A profile whose model the tenant has withdrawn is marked here, from the
+  # cache, so it is visible before it is chosen.
+  ! cached_models || cached=1
   # The model question comes right after this one. Fetching the tenant's list
   # while the profile question is open means it shows the current catalog
   # without a wait of its own; the fetch writes the cache, which the model
@@ -598,7 +614,11 @@ pick_agent_profile() {
   catalog_pid=$!
   mapfile -t names < <(jq -r 'keys[]' <<<"$AGENT_PROFILES")
   for name in "${names[@]}"; do
-    note "$i) $name · $(jq -r --arg p "$name" '.[$p] | [.harness, .model, .effort, .approval] | join(" · ")' <<<"$AGENT_PROFILES")"
+    line="$(jq -r --arg p "$name" '.[$p] | [.harness, .model, .effort, .approval] | join(" · ")' <<<"$AGENT_PROFILES")"
+    if [ "$cached" = 1 ] && [ "$(model_verdict "${line%% *}" "$(jq -r --arg p "$name" '.[$p].model' <<<"$AGENT_PROFILES")")" = missing ]; then
+      line="$line · model not offered"
+    fi
+    note "$i) $name · $line"
     i=$((i + 1))
   done
   hints "number select profile" "empty cancel"
@@ -630,11 +650,14 @@ pick_agent_model() {
   mapfile -t choices < <(model_choices "$harness")
   [ "${#choices[@]}" -gt 0 ] || die "$BEAMS_PROXY offers no models for $harness"
   if [ "${#choices[@]}" -eq 1 ] && [ "$verdict" = offered ]; then return 0; fi
+  local fresh
+  fresh="$(new_models "$harness")"
   printf '\n'
   note "$harness models on $BEAMS_PROXY:"
   for m in "${choices[@]}"; do
     mark=""
     [ "${m,,}" != "${model,,}" ] || mark=" · profile default"
+    ! grep -qxF -- "$m" <<<"$fresh" || mark="$mark · new"
     note "$i) $m$mark"
     i=$((i + 1))
   done
@@ -698,10 +721,23 @@ models_from_apps() {
 }
 
 # Fetch the catalog and cache it. Quiet; the caller decides what a failure means.
+# The cache also records when each launch name first appeared (first_seen, in
+# Unix seconds), so the picker can mark what the tenant added recently. The
+# first listing for a tenant, and a cache written before this field existed, is
+# the baseline: everything in it counts as already known (0).
 fetch_models() {
-  local apps catalog tmp
+  local apps catalog prev="null" tmp
   apps="$(tsh --proxy="$BEAMS_PROXY" apps ls -f json 2>/dev/null)" || return 1
   catalog="$(models_from_apps <<<"$apps" 2>/dev/null)" || return 1
+  if [ -s "$MODELS_CACHE" ]; then
+    prev="$(jq -c --arg p "$BEAMS_PROXY" 'select(.proxy == $p) | .first_seen' "$MODELS_CACHE" 2>/dev/null)" || prev="null"
+    [ -n "$prev" ] || prev="null"
+  fi
+  catalog="$(jq -c --argjson prev "$prev" '
+    (now | floor) as $now
+    | .first_seen = ([.harnesses[].choices[]] | unique
+        | map({key: ., value: (if $prev == null then 0 else ($prev[.] // $now) end)})
+        | from_entries)' <<<"$catalog" 2>/dev/null)" || return 1
   tmp="$(mktemp "$MODELS_CACHE.XXXXXX")"
   printf '%s\n' "$catalog" > "$tmp"
   mv "$tmp" "$MODELS_CACHE"
@@ -728,6 +764,14 @@ model_verdict() {
 }
 
 model_choices() { jq -r --arg h "$1" '.harnesses[$h].choices // [] | .[]' <<<"$MODELS_JSON"; }
+
+# The launch names that appeared in the last NEW_MODEL_DAYS days, one per line.
+NEW_MODEL_DAYS=7
+new_models() {
+  jq -r --arg h "$1" --argjson d "$NEW_MODEL_DAYS" '
+    (now - $d * 86400) as $since | (.first_seen // {}) as $seen
+    | .harnesses[$h].choices // [] | .[] | select(($seen[.] // 0) > $since)' <<<"$MODELS_JSON"
+}
 
 # Stop a launch whose model the tenant would refuse, before any Beam or
 # workspace exists. The cache answers first. A model it does not list is
@@ -758,6 +802,9 @@ check_agent_model() {
   esac
   offered="$(jq -r --arg h "$AGENT_KIND" '.harnesses[$h].choices // [] | join(", ")' <<<"$MODELS_JSON")"
   [ -n "$offered" ] || die "$BEAMS_PROXY offers no models for $AGENT_KIND"
+  if [ "${AGENT_MODEL_FROM:-}" = env ]; then
+    die "$AGENT_MODEL is not offered on $BEAMS_PROXY; $AGENT_KIND models: $offered. Change --model in BEAM_AGENT_ARGS in $CONFIG_DIR/env, or set BEAM_AGENT_PROFILE there"
+  fi
   die "$AGENT_MODEL is not offered on $BEAMS_PROXY; $AGENT_KIND models: $offered. Pick one in the profiles pane, pass --model, or change the profile in $CONFIG_DIR/profiles.json"
 }
 

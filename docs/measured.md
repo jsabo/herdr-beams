@@ -379,6 +379,32 @@ codex-cli 0.170.0), through `HERDR_BEAMS_INTEGRATION=1` and a second debug Beam:
   pane is already open`. The live test therefore checks the action's own result
   and drives the launch through the Beam's installed scripts.
 
+## Where an agent launch spends its time (2026-11-26)
+
+Each external call of one `agent` launch from the laptop, timed with wrappers
+around `tsh`, `ssh` and `herdr` against a live Beam (plugin 0.10.0, herdr 0.9.5,
+Teleport 19.0.0-dev.beams.launch.2). Codex, warm model cache:
+
+| Step | Time | Ran |
+|---|---|---|
+| `tsh beams ls -f json` (quick_reconcile) | 1.2 s | first, alone |
+| `herdr integration install codex` over the shared SSH connection | 0.35 s | alone |
+| Codex hook trust through `codex app-server` over SSH | about 2.5 s | alone |
+| `workspace create`, `workspace list`, `agent list` | 1.2 s | together |
+| `pane run` (the Codex process hint) | 1.0 s | alone |
+| `agent start`, which returns once the harness is ready for input | 6.2 s | alone |
+| `workspace report-metadata` and `agent prompt` | 1.3 s | together |
+| **Whole launch** | **14.1 s** | |
+
+The Claude launch took 14.5 s: no trust or `pane run`, but its integration install
+opened the SSH connection (1.7 s) and the cache was cold (`tsh apps ls`, 0.8 s).
+`agent start` has no option to return before the agent is ready
+(`herdr agent start --help`), so its 6.2 s stays inside the popup.
+
+0.11.0 prepares the harness while the workspace is created. Four launches on the
+same Beam afterwards: Claude 11.0 s and 8.9 s, Codex 10.5 s and 10.6 s. Each agent
+answered.
+
 Still to measure on a live Beam:
 
 - Whether `tsh beams ls` and `tsh beams publish` work inside a Beam under the
