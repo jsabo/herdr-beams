@@ -345,7 +345,10 @@ Claude/Codex actions have their own defaults below.
 
 `env` is a Bash file sourced by the plugin. Use `NAME=value` assignments and quote
 values containing spaces. Edit the copy on your laptop; the copy the plugin writes
-on each Beam is derived from it and is rewritten on the next setup.
+on each Beam is derived from it and is rewritten on the next setup. Your
+`profiles.json` goes to each Beam the same way, so a key pressed while a Beam is
+selected launches the same custom profiles. For a Beam set up before a change, run
+`herdr plugin action invoke herdr-beams.keys` to copy both again.
 
 ### Choose a bundled profile
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.1 (unreleased)
+
+- Copy your `profiles.json` and `BEAM_AGENT_PROFILE` to each Beam with its settings. The Beam already received `BEAM_CLAUDE_PROFILE` and `BEAM_CODEX_PROFILE`, but not the file defining them, so a key pressed while a Beam was selected failed with `no agent profile named <custom profile>`. Without a laptop `profiles.json`, a copy left on the Beam is removed. Run the `keys` action to refresh a Beam set up earlier.
+
 ## 0.11.0 (unreleased)
 
 - Prepare the harness (its herdr integration, and Codex's hook trust) while the workspace is created instead of before it. Four live launches took 8.9 s to 11.0 s, against 14.1 s and 14.5 s before. A failed preparation closes the new workspace again, so a failed launch still leaves nothing behind.

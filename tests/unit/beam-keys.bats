@@ -213,3 +213,40 @@ sandbox_run() {
   # it stopped there: no settings and no key block on a Beam without the plugin
   [ ! -e "$sandbox_home/plugin-config/env" ]
 }
+
+@test "keys: the Beam gets the laptop's profiles.json and default profile names" {
+  printf '%s\n' '{"claude-max":{"harness":"claude","model":"anthropic.claude-opus-5-5","effort":"max","approval":"bypass"}}' \
+    > "$HERDR_PLUGIN_CONFIG_DIR/profiles.json"
+  printf 'BEAM_AGENT_PROFILE=claude-max\nBEAM_CLAUDE_PROFILE=claude-max\n' >> "$HERDR_PLUGIN_CONFIG_DIR/env"
+  run payload beams_profiles alpha-one "$uuid"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$(cat "$HERDR_PLUGIN_CONFIG_DIR/profiles.json")" ]
+  run payload beams_env alpha-one "$uuid"
+  [[ "$output" == *'BEAM_AGENT_PROFILE=claude-max'* ]]
+  [[ "$output" == *'BEAM_CLAUDE_PROFILE=claude-max'* ]]
+  sandbox_run
+  [ "$status" -eq 0 ]
+  cmp "$HERDR_PLUGIN_CONFIG_DIR/profiles.json" "$sandbox_home/plugin-config/profiles.json"
+}
+
+@test "keys: a Beam-side key launches a custom profile the laptop defined" {
+  printf '%s\n' '{"claude-max":{"harness":"claude","model":"anthropic.claude-opus-5-5","effort":"max","approval":"bypass"}}' \
+    > "$HERDR_PLUGIN_CONFIG_DIR/profiles.json"
+  printf 'BEAM_CLAUDE_PROFILE=claude-max\n' >> "$HERDR_PLUGIN_CONFIG_DIR/env"
+  sandbox_run
+  [ "$status" -eq 0 ]
+  : > "$FAKE_LOG"
+  HERDR_PLUGIN_CONFIG_DIR="$sandbox_home/plugin-config" run_in_beam beam-claude.sh review '' </dev/null
+  [ "$status" -eq 0 ]
+  grep -q 'agent start claude .*-- --model anthropic.claude-opus-5-5 --effort max --dangerously-skip-permissions$' "$FAKE_LOG"
+}
+
+@test "keys: with no profiles.json on the laptop, an old copy on the Beam is removed" {
+  mkdir -p "$BATS_TEST_TMPDIR/beam-home/plugin-config"
+  printf '{}' > "$BATS_TEST_TMPDIR/beam-home/plugin-config/profiles.json"
+  sandbox_run
+  [ "$status" -eq 0 ]
+  [ ! -e "$sandbox_home/plugin-config/profiles.json" ]
+  run payload beams_env alpha-one "$uuid"
+  [[ "$output" != *'BEAM_AGENT_PROFILE'* ]]
+}

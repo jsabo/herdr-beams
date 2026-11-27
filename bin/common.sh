@@ -464,22 +464,31 @@ beam_env_file() {
   printf 'BEAM_LOGIN=%q\n' "$BEAM_LOGIN"
   printf 'BEAM_AGENT_KIND=%q\n' "$BEAM_AGENT_KIND"
   printf 'BEAM_AGENT_ARGS=%q\n' "$BEAM_AGENT_ARGS"
-  for name in BEAM_CLAUDE_PROFILE BEAM_CODEX_PROFILE; do
+  for name in BEAM_AGENT_PROFILE BEAM_CLAUDE_PROFILE BEAM_CODEX_PROFILE; do
     [ -z "${!name:-}" ] || printf '%s=%q\n' "$name" "${!name}"
   done
 }
 
+# The laptop's own profiles.json, which the profile names above may point at.
+# A Beam gets the same file, so a key pressed there launches the same profile;
+# empty when there is none, which removes a copy an earlier setup left.
+beam_profiles_file() {
+  [ ! -f "$CONFIG_DIR/profiles.json" ] || cat "$CONFIG_DIR/profiles.json"
+}
+
 # The program that puts this plugin and its keybindings on a Beam: install the
-# plugin from GitHub if it is missing, write the env file above, and append the
-# key block to the Beam's own herdr config unless it is already there. The two
-# payloads travel base64-encoded, so no quoting has to survive the trip, and
-# running the program again changes nothing. Its first lines are assignments,
-# so a test can decode what would be written without reaching a Beam.
+# plugin from GitHub if it is missing, write the env file and profiles.json
+# above, and append the key block to the Beam's own herdr config unless it is
+# already there. The payloads travel base64-encoded, so no quoting has to
+# survive the trip, and running the program again changes nothing. Its first
+# lines are assignments, so a test can decode what would be written without
+# reaching a Beam.
 beam_setup_program() {
   local id="$1" uuid="$2"
   [ -f config/beam-keys.toml ] || die "config/beam-keys.toml is missing from the plugin"
   printf 'beams_env=%q\n' "$(beam_env_file "$id" "$uuid" | base64 | tr -d '\n')"
   printf 'beams_keys=%q\n' "$(base64 < config/beam-keys.toml | tr -d '\n')"
+  printf 'beams_profiles=%q\n' "$(beam_profiles_file | base64 | tr -d '\n')"
   printf 'beams_source=%q\n' "$BEAM_PLUGIN_SOURCE"
   cat <<'EOF'
 set -e
@@ -502,6 +511,11 @@ fi
 config_dir="$("$herdr_bin" plugin config-dir herdr-beams)"
 mkdir -p "$config_dir"
 printf %s "$beams_env" | base64 -d > "$config_dir/env"
+if [ -n "$beams_profiles" ]; then
+  printf %s "$beams_profiles" | base64 -d > "$config_dir/profiles.json"
+else
+  rm -f "$config_dir/profiles.json"
+fi
 herdr_config="${XDG_CONFIG_HOME:-$HOME/.config}/herdr/config.toml"
 mkdir -p "$(dirname "$herdr_config")"
 if ! grep -qs '^# herdr-beams-keys$' "$herdr_config"; then
