@@ -91,36 +91,61 @@ if [ -z "$prompt" ] && interactive; then
   ask "First prompt (empty for none): " prompt
 fi
 
-if [ "$prepared_harness" != "$AGENT_KIND" ]; then
-  busy "installing $AGENT_KIND integration on $id"
-  install_agent_integration "$host" "$AGENT_KIND" \
-    || die "could not install $AGENT_KIND integration on $id"
+# Preparing the harness (its herdr integration, and for Codex the hook trust) is
+# SSH work on the Beam that nothing needs until the agent starts, so it runs
+# while the workspace is created instead of before it: the Codex trust alone is
+# about 2.5 s (docs/measured.md). A failure closes the new workspace again, so a
+# failed launch still leaves nothing behind.
+prepare_harness() {
+  if [ "$prepared_harness" != "$AGENT_KIND" ]; then
+    install_agent_integration "$host" "$AGENT_KIND" \
+      || { bad "could not install $AGENT_KIND integration on $id"; return 1; }
+  fi
+  if [ "$AGENT_KIND" = codex ]; then
+    trust_codex_integration "$host" \
+      || { bad "could not prepare Codex hook trust on $id"; return 1; }
+  fi
+}
+prep_log="$(mktemp)"
+taken_json="$(mktemp)"
+spaces_json="$(mktemp)"
+prep_pid=""
+list_pid=""
+spaces_pid=""
+cleanup_agent() {
+  local rc="$?"
+  trap - EXIT
+  [ -z "$prep_pid" ] || wait "$prep_pid" || true
+  [ -z "$list_pid" ] || wait "$list_pid" || true
+  [ -z "$spaces_pid" ] || wait "$spaces_pid" || true
+  rm -f "$prep_log" "$taken_json" "$spaces_json"
+  finish "$rc"
+  exit "$rc"
+}
+if [ "$prepared_harness" != "$AGENT_KIND" ] || [ "$AGENT_KIND" = codex ]; then
+  busy "preparing $AGENT_KIND on $id while its workspace is created"
 fi
+prepare_harness > "$prep_log" 2>&1 &
+prep_pid=$!
 
-if [ "$AGENT_KIND" = codex ]; then
-  busy "registering the Herdr Codex hook on $id"
-  trust_codex_integration "$host" \
-    || die "could not prepare Codex hook trust on $id; no agent was launched"
-fi
+# Wait for the preparation before anything starts the agent. On failure, show
+# why and close the workspace made for it.
+wait_prepared() {
+  local rc=0
+  wait "$prep_pid" || rc=$?
+  prep_pid=""
+  [ "$rc" -ne 0 ] || return 0
+  cat "$prep_log" >&2
+  herdr_at "$machine" workspace close "$workspace" >/dev/null 2>&1 \
+    || die "no agent was launched; close the empty workspace with: $(herdr_cmd "$machine") workspace close $workspace"
+  die "no agent was launched; its workspace was closed again"
+}
 
 # The agent list (for the name), the workspace list (for the label) and the
 # workspace itself are independent, and each is a round trip to the Beam's
 # herdr, so all three run at once. The create cannot wait for the listing that
 # decides its label without serialising two of them (docs/measured.md), so a
 # label already in use is corrected by a rename below instead.
-taken_json="$(mktemp)"
-spaces_json="$(mktemp)"
-list_pid=""
-spaces_pid=""
-cleanup_agent() {
-  local rc="$?"
-  trap - EXIT
-  [ -z "$list_pid" ] || wait "$list_pid" || true
-  [ -z "$spaces_pid" ] || wait "$spaces_pid" || true
-  rm -f "$taken_json" "$spaces_json"
-  finish "$rc"
-  exit "$rc"
-}
 trap cleanup_agent EXIT
 herdr_at "$machine" agent list > "$taken_json" &
 list_pid=$!
@@ -197,6 +222,7 @@ if [ "$AGENT_KIND" = codex ]; then
   AGENT_ARGS+=(-c 'tui.terminal_title=["activity","thread-title"]')
 fi
 
+wait_prepared
 herdr_at "$machine" agent start "$agent" --kind "$AGENT_KIND" --pane "$pane" -- "${AGENT_ARGS[@]}" >/dev/null
 phase "$AGENT_KIND is ready as agent $agent"
 

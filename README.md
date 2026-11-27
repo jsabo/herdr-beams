@@ -383,11 +383,14 @@ name that is not on its list. The plugin reads those lists with
 `tsh apps ls`, so a model your tenant adds shows up without a plugin update:
 
 - **The picker asks.** After you choose a profile, the `profiles` popup lists the
-  tenant's models for that harness. Enter keeps the profile's model; a number
-  launches that model with the profile's other settings.
+  tenant's models for that harness, marking `· new` on any the tenant added in the
+  last week. Enter keeps the profile's model; a number launches that model with
+  the profile's other settings. A profile whose model was withdrawn is marked
+  `· model not offered` in the profile list.
 - **Every launch is checked first.** A model the tenant does not offer stops the
   launch before any Beam or workspace is created, and the message lists what is
-  offered. Before this check, the refusal appeared inside the agent's pane.
+  offered. Before this check, the refusal appeared inside the agent's pane. A
+  `--model` in the legacy `BEAM_AGENT_ARGS` is checked the same way.
 - **Scripts pass `--model`.** `bash bin/beam-agent.sh --profile codex-sol --model
   openai.gpt-6.2-sol <beam-id> review` replaces only the model.
 

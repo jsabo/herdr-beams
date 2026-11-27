@@ -92,7 +92,13 @@
   been refused at its first prompt. The message lists what is offered. Choose one in
   the `profiles` popup, pass `--model`, or update `model` in your `profiles.json`.
   The plugin has already re-read the list once, so a model added in the last few
-  minutes is not the cause.
+  minutes is not the cause. When the message says to change `BEAM_AGENT_ARGS`, the
+  model is in the legacy launch line of your `env` file: replace it, or set
+  `BEAM_AGENT_PROFILE=claude-opus` to launch through a checked profile instead.
+- **A launch says "no agent was launched; its workspace was closed again".** The
+  harness preparation (its herdr integration, and Codex's hook trust) failed while
+  the workspace was being created; the lines above it say why. The empty workspace
+  was closed. If closing failed too, the message gives the `workspace close` command.
 - **A launch says "could not read the model list ... unchecked".** `tsh apps ls`
   failed: on the laptop, log in again; on any machine, check that your roles grant
   the tenant's inference apps. The launch still runs; a wrong model then fails in

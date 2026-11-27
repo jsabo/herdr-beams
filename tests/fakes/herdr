@@ -86,6 +86,10 @@ case "${1:-} ${2:-}" in
     printf '%s' "$4" > "$FAKE_STATE/last-pane-command"
     printf '{"result":{}}\n'
     ;;
+  "workspace close")
+    [ ! -e "$FAKE_STATE/workspace-close-fails" ] || exit 1
+    printf '{"id":"cli:workspace:close","result":{"type":"ok"}}\n'
+    ;;
   "workspace report-metadata")
     [ ! -e "$FAKE_STATE/report-metadata-fails" ] || exit 1
     printf '{"id":"cli:workspace:report-metadata","result":{}}\n'

@@ -213,3 +213,67 @@ openai_models() {
   [[ "$output" == *'could not read the model list on example.beams.sh; launches will try again'* ]]
   [ "$(catalog | jq -r .proxy)" = example.beams.sh ]
 }
+
+@test "models: a model in the legacy BEAM_AGENT_ARGS is checked, and the refusal points at env" {
+  printf 'BEAMS_PROXY=example.beams.sh\nBEAM_AGENT_ARGS="--dangerously-skip-permissions --model claude-opus-5 --effort high"\n' \
+    > "$HERDR_PLUGIN_CONFIG_DIR/env"
+  run_script beam-agent.sh alpha-one api
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'claude-opus-5 is not offered on example.beams.sh; claude models: anthropic.claude-opus-5-5, anthropic.claude-sonnet-5. Change --model in BEAM_AGENT_ARGS in'*'/env, or set BEAM_AGENT_PROFILE there'* ]]
+  ! grep -q 'workspace create' "$FAKE_LOG"
+  for args in '--model=claude-opus-5-5' '--model claude-opus-5-5' '--dangerously-skip-permissions'; do
+    printf 'BEAMS_PROXY=example.beams.sh\nBEAM_AGENT_ARGS="%s"\n' "$args" > "$HERDR_PLUGIN_CONFIG_DIR/env"
+    run_script beam-agent.sh alpha-one api
+    [ "$status" -eq 0 ]
+  done
+}
+
+@test "models: Codex's -m is read as its model on the legacy path, and new checks it before a Beam" {
+  printf 'BEAMS_PROXY=example.beams.sh\nBEAM_AGENT_KIND=codex\nBEAM_AGENT_ARGS="-m gpt-0"\n' > "$HERDR_PLUGIN_CONFIG_DIR/env"
+  run_script beam-new.sh
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'gpt-0 is not offered on example.beams.sh'* ]]
+  ! grep -q 'beams add' "$FAKE_LOG"
+}
+
+@test "models: the first listing is the baseline, so nothing is marked new" {
+  run bash -c '. bin/common.sh; fetch_models; new_models codex; jq -c "[.first_seen[]] | unique" "$MODELS_CACHE"'
+  [ "$status" -eq 0 ]
+  [ "$output" = '[0]' ]
+}
+
+@test "models: a model the tenant adds later is marked new in the picker for a week" {
+  openai_models '[{"name":"openai.gpt-6.1-sol"},{"name":"openai.gpt-6-luna"}]'
+  run bash -c '. bin/common.sh; fetch_models'
+  [ "$status" -eq 0 ]
+  cp "$REPO/tests/fixtures/apps.json" "$FAKE_STATE/apps.json"
+  run_interactive beam-profiles.sh alpha-one <<<$'3\n\nreview\n\n'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'1) openai.gpt-6-luna'$'\n'* ]]
+  [[ "$output" == *'2) openai.gpt-6.1-sol · profile default'$'\n'* ]]
+  [[ "$output" == *'4) openai.gpt-6.2-sol · new'* ]]
+  # Eight days later it is an ordinary model again.
+  jq '.first_seen |= map_values(if . > 0 then . - 8 * 86400 else . end)' "$HERDR_PLUGIN_STATE_DIR/models.json" \
+    > "$BATS_TEST_TMPDIR/aged.json"
+  run bash -c '. bin/common.sh; MODELS_JSON="$(cat "$1")"; new_models codex' _ "$BATS_TEST_TMPDIR/aged.json"
+  [ -z "$output" ]
+}
+
+@test "models: a cache written before first_seen existed is a baseline, not a flood of new models" {
+  mkdir -p "$HERDR_PLUGIN_STATE_DIR"
+  bash -c '. bin/common.sh; models_from_apps < "$FAKE_STATE/apps.json"' > "$HERDR_PLUGIN_STATE_DIR/models.json"
+  run bash -c '. bin/common.sh; fetch_models; new_models codex; new_models claude'
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "models: the profile list marks a profile whose model the cached catalog no longer offers" {
+  printf '%s' '{"old":{"harness":"claude","model":"anthropic.claude-opus-5","effort":"high","approval":"default"}}' \
+    > "$HERDR_PLUGIN_CONFIG_DIR/profiles.json"
+  run_interactive beam-profiles.sh alpha-one </dev/null
+  [[ "$output" != *'model not offered'* ]]
+  run bash -c '. bin/common.sh; fetch_models'
+  run_interactive beam-profiles.sh alpha-one </dev/null
+  [[ "$output" == *'5) old · claude · anthropic.claude-opus-5 · high · default · model not offered'* ]]
+  [[ "$output" == *'3) codex-sol · codex · openai.gpt-6.1-sol · high · on-request'$'\n'* ]]
+}

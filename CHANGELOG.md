@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.0 (unreleased)
+
+- Prepare the harness (its herdr integration, and Codex's hook trust) while the workspace is created instead of before it. Four live launches took 8.9 s to 11.0 s, against 14.1 s and 14.5 s before. A failed preparation closes the new workspace again, so a failed launch still leaves nothing behind.
+- Mark `· new` in the model question on any model the tenant added in the last seven days. The cache records when each model first appeared; the first listing for a tenant is the baseline, so nothing in it counts as new.
+- Mark `· model not offered` in the profile list on a profile whose model the cached catalog no longer offers, before it is chosen.
+- Check a model named in the legacy `BEAM_AGENT_ARGS` (`--model`, `--model=`, Codex's `-m`) like a profile's, with a refusal that points at the `env` file. Unchecked, Claude Code swapped a model the Beam image does not allow for one it does.
+
 ## 0.10.0 (unreleased)
 
 - Update the bundled models to ones every Beams tenant now serves: `claude-opus` uses `anthropic.claude-opus-5-5`, `codex-sol` uses `openai.gpt-6.1-sol` and `codex-terra` uses `openai.gpt-6.1-terra`. `anthropic.claude-opus-5`, `openai.gpt-5.6-sol` and `openai.gpt-5.6-terra` are no longer served, so those three profiles failed at the agent's first prompt.

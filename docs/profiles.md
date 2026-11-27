@@ -50,10 +50,15 @@ needs no admin rights: the standard Beams user role grants the inference apps. I
 caches the result as `models.json` in the plugin's state directory, refreshes it in
 the startup hook, and uses it three ways:
 
-- **Picker.** After the profile question, `profiles` lists one name per model for
-  that harness, preferring the provider-qualified name, and marks the profile's
-  model. Enter keeps it; a number replaces only the model for this launch. A profile
-  model the tenant no longer offers is flagged, and Enter then cancels. The
+- **Picker.** The profile list marks a profile whose model the cached catalog no
+  longer offers with `· model not offered`. After the profile question, `profiles`
+  lists one name per model for that harness, preferring the provider-qualified
+  name. It marks the profile's model, and marks `· new` on a model the tenant added
+  in the last seven days. The cache records when each name first appeared; the
+  first listing for a tenant is the baseline, so nothing in it counts as new.
+  Enter keeps the profile's model; a number replaces only the model for this
+  launch. A profile model the tenant no longer offers is flagged, and Enter then
+  cancels. The
   question is skipped when the list cannot be read, when the app accepts any name,
   and when the profile's model is the only one offered. The listing runs while the
   profile question is open, so the model question shows the current list.
@@ -68,8 +73,9 @@ the startup hook, and uses it three ways:
 The listing works on the laptop and inside a Beam under its delegated identity
 (docs/measured.md). When no listing is possible (not logged in, or a tenant whose
 roles do not grant the apps), launches go ahead unchecked and print that they did.
-The legacy unprofiled launch is never checked: its model, if any, is inside
-`BEAM_AGENT_ARGS`.
+The legacy unprofiled launch is checked too, when `BEAM_AGENT_ARGS` names a model
+with `--model <id>`, `--model=<id>`, or for Codex `-m <id>`; its refusal says to
+change that line in `env` or set `BEAM_AGENT_PROFILE`.
 
 Claude Code adds a second list of its own. The Beam image's `~/.claude/settings.json`
 sets `availableModels`, and Claude Code replaces any other model with an allowed one,
