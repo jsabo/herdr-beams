@@ -127,7 +127,8 @@ scripts in `bin/`, and they do exactly this:
   sidebar entry, preserving access when the deletion request fails.
 - **On the Beam**: `curl -fsSL https://herdr.dev/install.sh | sh` if herdr is
   missing, `herdr plugin install jsabo/herdr-beams` if this plugin is missing, the
-  plugin's own `env` file written into `$(herdr plugin config-dir herdr-beams)`
+  plugin's own `env` file and a copy of your `profiles.json` written into
+  `$(herdr plugin config-dir herdr-beams)`
   there, one block appended to the Beam's `~/.config/herdr/config.toml` after a
   `# herdr-beams-keys` marker (`config/beam-keys.toml`: the same nine keys the
   README recommends on the laptop, the prefix then Shift and the initial of the

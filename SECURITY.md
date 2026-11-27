@@ -26,6 +26,10 @@ On the Beam:
   from creation reuses the integration just installed.
 - A section `## Inside a Beam (added by herdr-beams)` appended to `~/.claude/CLAUDE.md`
   and `~/AGENTS.md`. The text is `beam_notes` in `bin/common.sh`.
+- `herdr plugin install jsabo/herdr-beams` when the plugin is missing, its `env`
+  file (your laptop settings plus which Beam this is), a copy of your
+  `profiles.json` when you have one, and the key block appended to the Beam's
+  `~/.config/herdr/config.toml`.
 
 ## What it stores
 

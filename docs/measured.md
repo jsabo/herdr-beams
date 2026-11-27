@@ -405,6 +405,16 @@ opened the SSH connection (1.7 s) and the cache was cold (`tsh apps ls`, 0.8 s).
 same Beam afterwards: Claude 11.0 s and 8.9 s, Codex 10.5 s and 10.6 s. Each agent
 answered.
 
+## Custom profiles on a Beam (2026-11-26)
+
+With 0.11.1's setup, a new Beam's plugin config held the laptop's
+`BEAM_AGENT_PROFILE`, `BEAM_CLAUDE_PROFILE` and `BEAM_CODEX_PROFILE` and a copy of
+its `profiles.json`. Run from the Beam's installed plugin, `beam-claude.sh` launched
+the custom `claude-max` profile, and Claude Code's header read `Opus 5.5 with max
+effort`. `beam-codex.sh` launched `codex-max`, and Codex's footer read
+`GPT-6.2 Sol xhigh`. Both answered. Before the fix, the Beam had the profile names
+but not the file defining them.
+
 Still to measure on a live Beam:
 
 - Whether `tsh beams ls` and `tsh beams publish` work inside a Beam under the
